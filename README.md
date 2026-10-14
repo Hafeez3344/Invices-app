@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# وصل | Wasl — Delivery Receipt App
 
-## Getting Started
+Saudi delivery-order / receipt app (Next.js). Create bilingual Arabic delivery orders, generate QR + PDF, track status, and manage users.
 
-First, run the development server:
+## Features
+
+- Login (JWT) with Supabase users + local admin fallback
+- Create / edit delivery orders (Arabic defaults for KSA)
+- Live receipt preview (RTL)
+- PDF download + QR code
+- Last 5 invoices saved in browser (IndexedDB)
+- Admin user management
+- Invoice status: In Transit / Delivered / Cancelled
+- PWA-ready
+
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Default login (without Supabase):**
+- Username: `admin`
+- Password: `admin123`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Supabase setup
 
-## Learn More
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run SQL from `supabase/schema.sql` in the SQL Editor
+3. Copy keys into `.env.local`:
 
-To learn more about Next.js, take a look at the following resources:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+JWT_SECRET=long-random-secret
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
+ADMIN_FULL_NAME=مسؤول النظام
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. Create the first admin user via SQL (generate bcrypt hash) or use env fallback until you add a user from the dashboard.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Generate admin password hash
 
-## Deploy on Vercel
+```bash
+node -e "require('bcryptjs').hash('admin123',10).then(console.log)"
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Paste the hash into `app_users.password_hash` in Supabase.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Branding
+
+- App name: **وصل (Wasl)**
+- Logo: `public/wasl-logo.jpg`
+- Brand color: `#204978`
+- Default Arabic company data is in `src/lib/defaults.ts`
+
+## Scripts
+
+| Command        | Description          |
+|----------------|----------------------|
+| `npm run dev`  | Development server   |
+| `npm run build`| Production build     |
+| `npm start`    | Run production build |

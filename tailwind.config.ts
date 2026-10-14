@@ -9,8 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        brand: {
+          DEFAULT: "#204978",
+          dark: "#18365a",
+        },
         background: "var(--background)",
         foreground: "var(--foreground)",
+      },
+      fontFamily: {
+        cairo: ["var(--font-cairo)", "Tahoma", "Arial", "sans-serif"],
       },
     },
   },

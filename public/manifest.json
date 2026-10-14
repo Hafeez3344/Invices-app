@@ -1,0 +1,19 @@
+{
+  "name": "وصل | Wasl",
+  "short_name": "وصل",
+  "description": "Create and manage delivery orders with PDF generation",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#204978",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/wasl-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}
