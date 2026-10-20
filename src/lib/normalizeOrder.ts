@@ -1,13 +1,39 @@
 import { DEFAULT_ORDER_TEMPLATE } from "./defaults";
-import type { DeliveryOrder } from "./types";
+import { createEmptyGoodsItem, type DeliveryOrder, type GoodsItem } from "./types";
+
+function normalizeItems(raw: Partial<DeliveryOrder>): GoodsItem[] {
+  if (Array.isArray(raw.items) && raw.items.length > 0) {
+    return raw.items.map((item) => ({
+      ...createEmptyGoodsItem(),
+      ...item,
+      id: item.id || createEmptyGoodsItem().id,
+    }));
+  }
+
+  // Migrate old single `load` object into items[]
+  if (raw.load) {
+    return [
+      {
+        ...createEmptyGoodsItem(),
+        ...raw.load,
+        id: raw.load.id || createEmptyGoodsItem().id,
+      },
+    ];
+  }
+
+  return [...DEFAULT_ORDER_TEMPLATE.items];
+}
 
 /** Fill missing fields when loading older saved orders */
 export function normalizeOrder(raw: Partial<DeliveryOrder>): DeliveryOrder {
   const d = DEFAULT_ORDER_TEMPLATE;
+  const items = normalizeItems(raw);
+  const load = items[0] || d.load;
+
   return {
     ...d,
     ...raw,
-    schemaVersion: 2,
+    schemaVersion: 3,
     licenseNumber: raw.licenseNumber ?? d.licenseNumber,
     negotiable: raw.negotiable ?? d.negotiable,
     company: {
@@ -38,15 +64,8 @@ export function normalizeOrder(raw: Partial<DeliveryOrder>): DeliveryOrder {
       routeText: raw.transport?.routeText ?? "",
     },
     driver: { ...d.driver, ...raw.driver },
-    load: {
-      ...d.load,
-      ...raw.load,
-      weightUnit: raw.load?.weightUnit ?? d.load.weightUnit,
-      quantity: raw.load?.quantity ?? d.load.quantity,
-      dimensions: raw.load?.dimensions ?? d.load.dimensions,
-      packingUnit: raw.load?.packingUnit ?? d.load.packingUnit,
-      condition: raw.load?.condition ?? d.load.condition,
-    },
+    items,
+    load,
     payment: {
       ...d.payment,
       ...raw.payment,

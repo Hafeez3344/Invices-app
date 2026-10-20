@@ -1,11 +1,24 @@
-import type { DeliveryOrder } from "./types";
+import type { DeliveryOrder, GoodsItem } from "./types";
+import { createEmptyGoodsItem } from "./types";
+
+const defaultItem: GoodsItem = {
+  ...createEmptyGoodsItem(),
+  id: "item-default-1",
+  type: "بضائع عامة",
+  weight: "1.000",
+  weightUnit: "طن",
+  quantity: "1",
+  dimensions: "",
+  packingUnit: "",
+  condition: "سليمة",
+};
 
 /** Saudi Arabic defaults matching وثيقة نقل style */
 export const DEFAULT_ORDER_TEMPLATE: Omit<
   DeliveryOrder,
   "id" | "createdAt" | "updatedAt"
 > = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   invoiceNumber: "00001",
   licenseNumber: "11/00000001",
   receiptDate: "",
@@ -51,15 +64,8 @@ export const DEFAULT_ORDER_TEMPLATE: Omit<
     iqamaNumber: "2000000000",
     mobile: "+966500000003",
   },
-  load: {
-    type: "بضائع عامة",
-    weight: "1.000",
-    weightUnit: "طن",
-    quantity: "1",
-    dimensions: "",
-    packingUnit: "",
-    condition: "سليمة",
-  },
+  load: { ...defaultItem },
+  items: [{ ...defaultItem }],
   payment: {
     method: "كاش",
     paidBy: "المرسل",

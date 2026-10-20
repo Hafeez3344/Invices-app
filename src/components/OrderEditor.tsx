@@ -9,6 +9,8 @@ import {
   ZoomOut,
   RotateCw,
   LoaderCircle,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import AlertModal from "@/components/AlertModal";
@@ -17,7 +19,13 @@ import { authHeaders, isLoggedIn } from "@/lib/session";
 import { addInvoiceToHistory } from "@/lib/idb";
 import { downloadElementAsPdf } from "@/lib/pdf";
 import { normalizeOrder } from "@/lib/normalizeOrder";
-import type { AlertState, DeliveryOrder, InvoiceStatus } from "@/lib/types";
+import {
+  createEmptyGoodsItem,
+  type AlertState,
+  type DeliveryOrder,
+  type GoodsItem,
+  type InvoiceStatus,
+} from "@/lib/types";
 
 export default function OrderEditor() {
   const router = useRouter();
@@ -61,6 +69,33 @@ export default function OrderEditor() {
     return `${window.location.origin}/track/${order.id}`;
   }, [order]);
 
+  // Build a scannable QR as soon as the order is ready (preview + PDF)
+  useEffect(() => {
+    if (!order?.id || !customerUrl) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/generate-qr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: customerUrl,
+            status: order.status || "In Transit",
+          }),
+        });
+        const data = await res.json();
+        if (!cancelled && res.ok && data.qrCodeUrl) {
+          setQrCodeUrl(data.qrCodeUrl);
+        }
+      } catch {
+        /* ignore preview QR errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [order?.id, order?.status, customerUrl]);
+
   function updateOrder(next: DeliveryOrder) {
     setOrder(next);
     sessionStorage.setItem("currentOrder", JSON.stringify(next));
@@ -86,12 +121,46 @@ export default function OrderEditor() {
       | "sender"
       | "transport"
       | "driver"
-      | "load"
   >(section: S, key: keyof DeliveryOrder[S], value: string) {
     if (!order) return;
     updateOrder({
       ...order,
       [section]: { ...order[section], [key]: value },
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function updateItem(itemId: string, key: keyof GoodsItem, value: string) {
+    if (!order) return;
+    const items = order.items.map((item) =>
+      item.id === itemId ? { ...item, [key]: value } : item
+    );
+    updateOrder({
+      ...order,
+      items,
+      load: items[0] || order.load,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function addItem() {
+    if (!order) return;
+    const items = [...order.items, createEmptyGoodsItem()];
+    updateOrder({
+      ...order,
+      items,
+      load: items[0],
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  function removeItem(itemId: string) {
+    if (!order || order.items.length <= 1) return;
+    const items = order.items.filter((item) => item.id !== itemId);
+    updateOrder({
+      ...order,
+      items,
+      load: items[0],
       updatedAt: new Date().toISOString(),
     });
   }
@@ -300,6 +369,11 @@ export default function OrderEditor() {
 
           <Section title="بيانات المرسل">
             <Field
+              label="الاسم"
+              value={order.sender.name}
+              onChange={(v) => nested("sender", "name", v)}
+            />
+            <Field
               label="العنوان"
               value={order.sender.address}
               onChange={(v) => nested("sender", "address", v)}
@@ -392,41 +466,72 @@ export default function OrderEditor() {
           </Section>
 
           <Section title="بيانات البضاعة">
-            <Field
-              label="وصف البضاعة"
-              value={order.load.type}
-              onChange={(v) => nested("load", "type", v)}
-            />
-            <Field
-              label="العدد"
-              value={order.load.quantity}
-              onChange={(v) => nested("load", "quantity", v)}
-            />
-            <Field
-              label="الوزن"
-              value={order.load.weight}
-              onChange={(v) => nested("load", "weight", v)}
-            />
-            <Field
-              label="وحدة الوزن"
-              value={order.load.weightUnit}
-              onChange={(v) => nested("load", "weightUnit", v)}
-            />
-            <Field
-              label="الأبعاد (متر)"
-              value={order.load.dimensions}
-              onChange={(v) => nested("load", "dimensions", v)}
-            />
-            <Field
-              label="وحدة التعبئة"
-              value={order.load.packingUnit}
-              onChange={(v) => nested("load", "packingUnit", v)}
-            />
-            <Field
-              label="الحالة"
-              value={order.load.condition}
-              onChange={(v) => nested("load", "condition", v)}
-            />
+            {order.items.map((item, index) => (
+              <div
+                key={item.id}
+                className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-[#204978]">
+                    Item {index + 1} / صنف {index + 1}
+                  </p>
+                  {order.items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.id)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <Field
+                  label="وصف البضاعة"
+                  value={item.type}
+                  onChange={(v) => updateItem(item.id, "type", v)}
+                />
+                <Field
+                  label="العدد"
+                  value={item.quantity}
+                  onChange={(v) => updateItem(item.id, "quantity", v)}
+                />
+                <Field
+                  label="الوزن"
+                  value={item.weight}
+                  onChange={(v) => updateItem(item.id, "weight", v)}
+                />
+                <Field
+                  label="وحدة الوزن"
+                  value={item.weightUnit}
+                  onChange={(v) => updateItem(item.id, "weightUnit", v)}
+                />
+                <Field
+                  label="الأبعاد (متر)"
+                  value={item.dimensions}
+                  onChange={(v) => updateItem(item.id, "dimensions", v)}
+                />
+                <Field
+                  label="وحدة التعبئة"
+                  value={item.packingUnit}
+                  onChange={(v) => updateItem(item.id, "packingUnit", v)}
+                />
+                <Field
+                  label="الحالة"
+                  value={item.condition}
+                  onChange={(v) => updateItem(item.id, "condition", v)}
+                />
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addItem}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#204978] bg-white py-2.5 text-sm font-bold text-[#204978] hover:bg-blue-50"
+            >
+              <Plus className="h-4 w-4" />
+              Add another item / إضافة صنف آخر
+            </button>
           </Section>
 
           <button

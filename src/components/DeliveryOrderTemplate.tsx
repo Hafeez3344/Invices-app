@@ -87,7 +87,7 @@ export default function DeliveryOrderTemplate({ order, qrCodeUrl }: Props) {
         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, marginBottom: 14 }}>
           <tbody>
             <tr>
-              <td style={{ width: 80, verticalAlign: "top" }}>
+              <td style={{ width: 70, verticalAlign: "middle" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={order.company.logoDataUrl || "/wasl-logo.jpg"}
@@ -111,28 +111,35 @@ export default function DeliveryOrderTemplate({ order, qrCodeUrl }: Props) {
                   وثيقة نقل
                 </div>
               </td>
-              <td style={{ width: 80, verticalAlign: "top" }}>
+              <td style={{ width: 150, verticalAlign: "top" }}>
                 <div
                   data-role="qr-code"
                   style={{
-                    width: 72,
-                    height: 72,
+                    width: 140,
+                    height: 140,
                     border: `1px solid ${BORDER}`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     marginRight: "auto",
                     background: "#fff",
+                    padding: 4,
+                    boxSizing: "border-box",
                   }}
                 >
                   {qrCodeUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={qrCodeUrl}
-                      alt="QR"
-                      width={64}
-                      height={64}
-                      style={{ width: 64, height: 64, objectFit: "contain", display: "block" }}
+                      alt="QR Code"
+                      width={130}
+                      height={130}
+                      style={{
+                        width: 130,
+                        height: 130,
+                        objectFit: "contain",
+                        display: "block",
+                      }}
                     />
                   ) : (
                     <span style={{ fontSize: 10, color: "#9CA3AF" }}>QR</span>
@@ -404,10 +411,16 @@ export default function DeliveryOrderTemplate({ order, qrCodeUrl }: Props) {
               </td>
             </tr>
             <tr>
-              <td style={tdLabelStyle}>العنوان:</td>
-              <td style={tdValueStyle}>{order.sender.address}</td>
+              <td style={tdLabelStyle}>الاسم:</td>
+              <td style={tdValueStyle}>{order.sender.name}</td>
               <td style={tdLabelStyle}>الاسم:</td>
               <td style={tdValueStyle}>{order.receiver.name}</td>
+            </tr>
+            <tr>
+              <td style={tdLabelStyle}>العنوان:</td>
+              <td style={tdValueStyle}>{order.sender.address}</td>
+              <td style={tdLabelStyle}>العنوان:</td>
+              <td style={tdValueStyle}>{order.receiver.address}</td>
             </tr>
             <tr>
               <td style={tdLabelStyle}>المدينة:</td>
@@ -416,14 +429,6 @@ export default function DeliveryOrderTemplate({ order, qrCodeUrl }: Props) {
                 {order.transport.fromCityEn
                   ? ` / ${order.transport.fromCityEn}`
                   : ""}
-              </td>
-              <td style={tdLabelStyle}>العنوان:</td>
-              <td style={tdValueStyle}>{order.receiver.address}</td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>رقم الهاتف:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.sender.phone}
               </td>
               <td style={tdLabelStyle}>المدينة:</td>
               <td style={tdValueStyle}>
@@ -434,8 +439,10 @@ export default function DeliveryOrderTemplate({ order, qrCodeUrl }: Props) {
               </td>
             </tr>
             <tr>
-              <td style={tdLabelStyle}>—</td>
-              <td style={tdValueStyle}>—</td>
+              <td style={tdLabelStyle}>رقم الهاتف:</td>
+              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
+                {order.sender.phone}
+              </td>
               <td style={tdLabelStyle}>رقم الهاتف:</td>
               <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
                 {order.receiver.mobile}
@@ -478,27 +485,29 @@ export default function DeliveryOrderTemplate({ order, qrCodeUrl }: Props) {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td style={{ ...tdValueStyle, textAlign: "center" }}>{order.load.type}</td>
-              <td style={{ ...tdValueStyle, textAlign: "center", direction: "ltr" }}>
-                {order.load.quantity}
-              </td>
-              <td style={{ ...tdValueStyle, textAlign: "center", direction: "ltr" }}>
-                {order.load.weight}
-              </td>
-              <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                {order.load.weightUnit}
-              </td>
-              <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                {order.load.dimensions || "—"}
-              </td>
-              <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                {order.load.packingUnit || "—"}
-              </td>
-              <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                {order.load.condition}
-              </td>
-            </tr>
+            {(order.items?.length ? order.items : [order.load]).map((item) => (
+              <tr key={item.id || `${item.type}-${item.quantity}`}>
+                <td style={{ ...tdValueStyle, textAlign: "center" }}>{item.type}</td>
+                <td style={{ ...tdValueStyle, textAlign: "center", direction: "ltr" }}>
+                  {item.quantity}
+                </td>
+                <td style={{ ...tdValueStyle, textAlign: "center", direction: "ltr" }}>
+                  {item.weight}
+                </td>
+                <td style={{ ...tdValueStyle, textAlign: "center" }}>
+                  {item.weightUnit}
+                </td>
+                <td style={{ ...tdValueStyle, textAlign: "center" }}>
+                  {item.dimensions || "—"}
+                </td>
+                <td style={{ ...tdValueStyle, textAlign: "center" }}>
+                  {item.packingUnit || "—"}
+                </td>
+                <td style={{ ...tdValueStyle, textAlign: "center" }}>
+                  {item.condition}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
 

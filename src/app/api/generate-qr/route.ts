@@ -4,21 +4,37 @@ import QRCode from "qrcode";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const text = String(body.text || body.url || "");
+    // Plain URL only — phone cameras / scanners open this directly
+    const url = String(body.url || body.text || "").trim();
     const status = body.status || "In Transit";
 
-    if (!text) {
-      return NextResponse.json({ error: "text is required" }, { status: 400 });
+    if (!url) {
+      return NextResponse.json({ error: "url is required" }, { status: 400 });
     }
 
-    const payload = JSON.stringify({ url: text, status });
+    // Optional status as query param (still a valid scannable link)
+    let payload = url;
+    try {
+      const u = new URL(url);
+      if (status) u.searchParams.set("status", String(status));
+      payload = u.toString();
+    } catch {
+      payload = url;
+    }
+
     const dataUrl = await QRCode.toDataURL(payload, {
-      width: 280,
-      margin: 1,
-      color: { dark: "#204978", light: "#ffffff" },
+      width: 512,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: { dark: "#000000", light: "#ffffff" },
     });
 
-    return NextResponse.json({ success: true, qrCodeUrl: dataUrl, status });
+    return NextResponse.json({
+      success: true,
+      qrCodeUrl: dataUrl,
+      status,
+      scannedUrl: payload,
+    });
   } catch (e) {
     console.error("QR generation API failed:", e);
     return NextResponse.json(

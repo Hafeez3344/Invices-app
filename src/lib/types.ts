@@ -27,6 +27,17 @@ export interface PartyInfo {
   notes: string;
 }
 
+export interface GoodsItem {
+  id: string;
+  type: string;
+  weight: string;
+  weightUnit: string;
+  quantity: string;
+  dimensions: string;
+  packingUnit: string;
+  condition: string;
+}
+
 export interface DeliveryOrder {
   schemaVersion: number;
   id: string;
@@ -76,19 +87,30 @@ export interface DeliveryOrder {
     iqamaNumber: string;
     mobile: string;
   };
-  load: {
-    type: string;
-    weight: string;
-    weightUnit: string;
-    quantity: string;
-    dimensions: string;
-    packingUnit: string;
-    condition: string;
-  };
+  /** @deprecated use items — kept for older saved orders */
+  load: GoodsItem;
+  /** Goods / بضاعة rows (multiple items supported) */
+  items: GoodsItem[];
   payment: {
     method: string;
     paidBy: string;
     instructions: string;
+  };
+}
+
+export function createEmptyGoodsItem(): GoodsItem {
+  return {
+    id:
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type: "بضائع عامة",
+    weight: "1.000",
+    weightUnit: "طن",
+    quantity: "1",
+    dimensions: "",
+    packingUnit: "",
+    condition: "سليمة",
   };
 }
 
