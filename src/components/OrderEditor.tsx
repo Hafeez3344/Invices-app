@@ -16,6 +16,7 @@ import DeliveryOrderTemplate from "@/components/DeliveryOrderTemplate";
 import { authHeaders, isLoggedIn } from "@/lib/session";
 import { addInvoiceToHistory } from "@/lib/idb";
 import { downloadElementAsPdf } from "@/lib/pdf";
+import { normalizeOrder } from "@/lib/normalizeOrder";
 import type { AlertState, DeliveryOrder, InvoiceStatus } from "@/lib/types";
 
 export default function OrderEditor() {
@@ -25,7 +26,7 @@ export default function OrderEditor() {
 
   const [order, setOrder] = useState<DeliveryOrder | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.85);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState("");
   const [alert, setAlert] = useState<AlertState>({
@@ -45,12 +46,10 @@ export default function OrderEditor() {
       return;
     }
     try {
-      const parsed = JSON.parse(raw) as DeliveryOrder;
-      if (id && parsed.id !== id) {
-        // keep going with stored order
-      }
+      const parsed = normalizeOrder(JSON.parse(raw));
       setOrder(parsed);
       setQrCodeUrl(parsed.qrCodeUrl || "");
+      sessionStorage.setItem("currentOrder", JSON.stringify(parsed));
     } catch {
       router.replace("/order/new");
     }
@@ -80,7 +79,14 @@ export default function OrderEditor() {
   }
 
   function nested<
-    S extends "company" | "car" | "receiver" | "transport" | "driver" | "load"
+    S extends
+      | "company"
+      | "car"
+      | "receiver"
+      | "sender"
+      | "transport"
+      | "driver"
+      | "load"
   >(section: S, key: keyof DeliveryOrder[S], value: string) {
     if (!order) return;
     updateOrder({
@@ -111,7 +117,7 @@ export default function OrderEditor() {
     if (!order) return;
     setBusy(true);
     try {
-      setBusyLabel("Stage 0: Fetching current status from Supabase...");
+      setBusyLabel("Fetching status...");
       let status: InvoiceStatus = order.status || "In Transit";
       try {
         const st = await fetch(`/api/invoices/${order.id}`);
@@ -120,21 +126,28 @@ export default function OrderEditor() {
           if (json?.invoice?.status) status = json.invoice.status;
         }
       } catch {
-        console.warn("Failed to fetch current status, using provided status");
+        /* keep local status */
       }
 
-      setBusyLabel("Stage 1: Generating QR code...");
+      setBusyLabel("Generating QR code...");
       const qr = await generateQr(status);
+      await new Promise((r) => setTimeout(r, 350));
 
-      // Wait a tick so QR img paints
-      await new Promise((r) => setTimeout(r, 300));
+      setBusyLabel("Generating PDF...");
+      // Reset preview zoom so capture isn't affected by CSS transform
+      const prevZoom = zoom;
+      setZoom(1);
+      await new Promise((r) => setTimeout(r, 120));
 
-      setBusyLabel("Stage 2: Generating PDF...");
       const el = document.getElementById("delivery-order-template");
       if (!el) throw new Error("Template not found");
 
-      const filename = `invoice-${order.invoiceNumber}.pdf`;
-      await downloadElementAsPdf(el, filename);
+      const filename = `wathiqat-naql-${order.invoiceNumber}.pdf`;
+      try {
+        await downloadElementAsPdf(el, filename);
+      } finally {
+        setZoom(prevZoom);
+      }
 
       const withMeta: DeliveryOrder = {
         ...order,
@@ -143,25 +156,23 @@ export default function OrderEditor() {
         encryptedInvoiceId: order.encryptedInvoiceId || order.id,
       };
 
-      setBusyLabel("SAVING TO SUPABASE...");
+      setBusyLabel("Saving...");
       await fetch("/api/invoices", {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify(withMeta),
       });
-
-      setBusyLabel("Adding to history...");
       await addInvoiceToHistory(withMeta);
       updateOrder(withMeta);
 
       setAlert({
         isOpen: true,
         title: "Success",
-        message: "PDF downloaded and invoice saved to history.",
+        message: "PDF downloaded (وثيقة نقل + بيان حمولة) and saved to history.",
         type: "success",
       });
     } catch (e) {
-      console.error("An error occurred while downloading the invoice:", e);
+      console.error(e);
       setAlert({
         isOpen: true,
         title: "Failed",
@@ -195,7 +206,6 @@ export default function OrderEditor() {
       <AppHeader />
 
       <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4 sm:p-6 lg:flex-row">
-        {/* Form */}
         <aside className="w-full lg:w-[380px] shrink-0 space-y-4">
           <button
             type="button"
@@ -206,125 +216,216 @@ export default function OrderEditor() {
             Back to Dashboard
           </button>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
-            <h2 className="font-bold text-[#204978]">Invoice Details</h2>
+          <Section title="بيانات الوثيقة">
             <Field
-              label="Invoice Number / رقم الفاتورة"
+              label="رقم الوثيقة"
               value={order.invoiceNumber}
               onChange={(v) => field("invoiceNumber", v)}
             />
             <Field
-              label="Reciept Date / تاريخ الإيصال"
+              label="رقم الترخيص"
+              value={order.licenseNumber}
+              onChange={(v) => field("licenseNumber", v)}
+            />
+            <Field
+              label="Start Date / تاريخ البداية"
               value={order.receiptDate}
               onChange={(v) => field("receiptDate", v)}
             />
             <Field
-              label="Delivery Date / تاريخ التسليم"
+              label="End Date / تاريخ النهاية (بعد 5 أيام)"
               value={order.deliveryDate}
               onChange={(v) => field("deliveryDate", v)}
             />
-          </div>
+            <Field
+              label="قابلة للتداول"
+              value={order.negotiable}
+              onChange={(v) => field("negotiable", v)}
+            />
+          </Section>
 
-          <Section title="Company / الشركة">
+          <Section title="Owner Details">
             <Field
-              label="Name (AR)"
-              value={order.company.nameAr}
-              onChange={(v) => nested("company", "nameAr", v)}
+              label="الاسم / Name (اسم المرسل)"
+              value={order.sender.name}
+              onChange={(v) => nested("sender", "name", v)}
             />
             <Field
-              label="Address (AR)"
-              value={order.company.addressAr}
-              onChange={(v) => nested("company", "addressAr", v)}
+              label="Owner ID"
+              value={order.car.idNumber}
+              onChange={(v) => nested("car", "idNumber", v)}
             />
             <Field
-              label="Phone"
+              label="Mobile Number"
               value={order.company.phone}
               onChange={(v) => nested("company", "phone", v)}
             />
-          </Section>
-
-          <Section title="Receiver Information">
             <Field
-              label="Receiver Name"
-              value={order.receiver.name}
-              onChange={(v) => nested("receiver", "name", v)}
-            />
-            <Field
-              label="Receiver Address"
-              value={order.receiver.address}
-              onChange={(v) => nested("receiver", "address", v)}
-            />
-            <Field
-              label="Receiver Mobile"
-              value={order.receiver.mobile}
-              onChange={(v) => nested("receiver", "mobile", v)}
+              label="Notes"
+              value={order.company.notes}
+              onChange={(v) => nested("company", "notes", v)}
             />
           </Section>
 
-          <Section title="Driver Information">
+          <Section title="بيانات السائق">
             <Field
-              label="Driver Name"
+              label="اسم السائق"
               value={order.driver.name}
               onChange={(v) => nested("driver", "name", v)}
             />
             <Field
-              label="Iqama Number"
+              label="رقم هوية السائق"
               value={order.driver.iqamaNumber}
               onChange={(v) => nested("driver", "iqamaNumber", v)}
             />
             <Field
-              label="Mobile"
+              label="رقم الهاتف"
               value={order.driver.mobile}
               onChange={(v) => nested("driver", "mobile", v)}
             />
           </Section>
 
-          <Section title="Transportation Information">
+          <Section title="بيانات الشاحنة">
             <Field
-              label="From City"
-              value={order.transport.fromCity}
-              onChange={(v) => nested("transport", "fromCity", v)}
-            />
-            <Field
-              label="To City"
-              value={order.transport.toCity}
-              onChange={(v) => nested("transport", "toCity", v)}
-            />
-            <Field
-              label="Order No"
-              value={order.transport.orderNo}
-              onChange={(v) => nested("transport", "orderNo", v)}
-            />
-          </Section>
-
-          <Section title="Car Information">
-            <Field
-              label="Plate number"
+              label="لوحة المركبة"
               value={order.car.plateNumber}
               onChange={(v) => nested("car", "plateNumber", v)}
             />
             <Field
-              label="Owner"
-              value={order.car.owner}
-              onChange={(v) => nested("car", "owner", v)}
-            />
-            <Field
-              label="ID number"
-              value={order.car.idNumber}
-              onChange={(v) => nested("car", "idNumber", v)}
+              label="نوع لوحة المركبة"
+              value={order.car.plateType}
+              onChange={(v) => nested("car", "plateType", v)}
             />
           </Section>
 
-          <Section title="Load Information">
+          <Section title="بيانات المرسل">
             <Field
-              label="Load Type"
+              label="العنوان"
+              value={order.sender.address}
+              onChange={(v) => nested("sender", "address", v)}
+            />
+            <Field
+              label="المدينة"
+              value={order.sender.city}
+              onChange={(v) => nested("sender", "city", v)}
+            />
+            <Field
+              label="المدينة (EN)"
+              value={order.transport.fromCityEn}
+              onChange={(v) => nested("transport", "fromCityEn", v)}
+            />
+            <Field
+              label="رقم الهاتف"
+              value={order.sender.phone}
+              onChange={(v) => nested("sender", "phone", v)}
+            />
+            <Field
+              label="ملاحظات المرسل"
+              value={order.sender.notes}
+              onChange={(v) => nested("sender", "notes", v)}
+            />
+          </Section>
+
+          <Section title="بيانات المرسل إليه">
+            <Field
+              label="الاسم"
+              value={order.receiver.name}
+              onChange={(v) => nested("receiver", "name", v)}
+            />
+            <Field
+              label="العنوان"
+              value={order.receiver.address}
+              onChange={(v) => nested("receiver", "address", v)}
+            />
+            <Field
+              label="المدينة"
+              value={order.receiver.city}
+              onChange={(v) => nested("receiver", "city", v)}
+            />
+            <Field
+              label="المدينة (EN)"
+              value={order.transport.toCityEn}
+              onChange={(v) => nested("transport", "toCityEn", v)}
+            />
+            <Field
+              label="رقم الهاتف"
+              value={order.receiver.mobile}
+              onChange={(v) => nested("receiver", "mobile", v)}
+            />
+            <Field
+              label="ملاحظات المرسل إليه"
+              value={order.receiver.notes}
+              onChange={(v) => nested("receiver", "notes", v)}
+            />
+          </Section>
+
+          <Section title="خط سير الرحلة">
+            <Field
+              label="من مدينة"
+              value={order.transport.fromCity}
+              onChange={(v) =>
+                updateOrder({
+                  ...order,
+                  transport: { ...order.transport, fromCity: v },
+                  sender: { ...order.sender, city: v },
+                  updatedAt: new Date().toISOString(),
+                })
+              }
+            />
+            <Field
+              label="إلى مدينة"
+              value={order.transport.toCity}
+              onChange={(v) =>
+                updateOrder({
+                  ...order,
+                  transport: { ...order.transport, toCity: v },
+                  receiver: { ...order.receiver, city: v },
+                  updatedAt: new Date().toISOString(),
+                })
+              }
+            />
+            <Field
+              label="خط السير (اختياري)"
+              value={order.transport.routeText}
+              onChange={(v) => nested("transport", "routeText", v)}
+            />
+          </Section>
+
+          <Section title="بيانات البضاعة">
+            <Field
+              label="وصف البضاعة"
               value={order.load.type}
               onChange={(v) => nested("load", "type", v)}
             />
             <Field
-              label="Goods Weight"
+              label="العدد"
+              value={order.load.quantity}
+              onChange={(v) => nested("load", "quantity", v)}
+            />
+            <Field
+              label="الوزن"
               value={order.load.weight}
               onChange={(v) => nested("load", "weight", v)}
+            />
+            <Field
+              label="وحدة الوزن"
+              value={order.load.weightUnit}
+              onChange={(v) => nested("load", "weightUnit", v)}
+            />
+            <Field
+              label="الأبعاد (متر)"
+              value={order.load.dimensions}
+              onChange={(v) => nested("load", "dimensions", v)}
+            />
+            <Field
+              label="وحدة التعبئة"
+              value={order.load.packingUnit}
+              onChange={(v) => nested("load", "packingUnit", v)}
+            />
+            <Field
+              label="الحالة"
+              value={order.load.condition}
+              onChange={(v) => nested("load", "condition", v)}
             />
           </Section>
 
@@ -343,10 +444,11 @@ export default function OrderEditor() {
           </button>
         </aside>
 
-        {/* Preview */}
         <main className="min-w-0 flex-1">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="font-bold text-slate-800">Preview</h2>
+            <h2 className="font-bold text-slate-800">
+              Preview — وثيقة نقل / بيان حمولة
+            </h2>
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -358,7 +460,7 @@ export default function OrderEditor() {
               </button>
               <button
                 type="button"
-                onClick={() => setZoom(1)}
+                onClick={() => setZoom(0.85)}
                 className="rounded-lg bg-white border border-gray-200 p-2"
                 title="Reset Zoom"
               >
@@ -366,7 +468,7 @@ export default function OrderEditor() {
               </button>
               <button
                 type="button"
-                onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))}
+                onClick={() => setZoom((z) => Math.min(1.4, z + 0.1))}
                 className="rounded-lg bg-white border border-gray-200 p-2"
                 title="Zoom In"
               >

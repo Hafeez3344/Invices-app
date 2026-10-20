@@ -17,7 +17,7 @@ const config: Config = {
         foreground: "var(--foreground)",
       },
       fontFamily: {
-        cairo: ["var(--font-cairo)", "Tahoma", "Arial", "sans-serif"],
+        cairo: ["Cairo", "Tahoma", "Segoe UI", "Arial", "sans-serif"],
       },
     },
   },

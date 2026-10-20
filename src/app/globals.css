@@ -12,6 +12,11 @@
 body {
   color: var(--foreground);
   background: var(--background);
+  font-family: "Cairo", Tahoma, "Segoe UI", Arial, sans-serif;
+}
+
+.font-cairo {
+  font-family: "Cairo", Tahoma, "Segoe UI", Arial, sans-serif;
 }
 
 @layer utilities {

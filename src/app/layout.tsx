@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Cairo } from "next/font/google";
 import "./globals.css";
 import { BRAND } from "@/lib/defaults";
-
-const cairo = Cairo({
-  subsets: ["arabic", "latin"],
-  variable: "--font-cairo",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: `${BRAND.nameAr} | ${BRAND.name}`,
@@ -39,9 +32,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" dir="ltr">
-      <body
-        className={`${cairo.variable} bg-gray-100 font-cairo text-slate-900 min-h-screen antialiased`}
-      >
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="bg-gray-100 font-cairo text-slate-900 min-h-screen antialiased">
         {children}
         <script
           dangerouslySetInnerHTML={{

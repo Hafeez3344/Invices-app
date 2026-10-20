@@ -19,37 +19,57 @@ export interface SessionUser {
   role: UserRole;
 }
 
+export interface PartyInfo {
+  name: string;
+  address: string;
+  city: string;
+  phone: string;
+  notes: string;
+}
+
 export interface DeliveryOrder {
   schemaVersion: number;
   id: string;
   createdAt: string;
   updatedAt: string;
   invoiceNumber: string;
+  licenseNumber: string;
   receiptDate: string;
   deliveryDate: string;
   status?: InvoiceStatus;
   qrCodeUrl?: string;
   encryptedInvoiceId?: string;
+  negotiable: string;
   company: {
     nameAr: string;
     addressAr: string;
     phone: string;
     logoDataUrl: string;
+    notes: string;
   };
   car: {
     plateNumber: string;
+    plateType: string;
     owner: string;
     idNumber: string;
   };
+  /** المرسل إليه — kept as receiver for compatibility */
   receiver: {
     name: string;
     address: string;
+    city: string;
     mobile: string;
+    notes: string;
   };
+  /** المرسل */
+  sender: PartyInfo;
   transport: {
     fromCity: string;
     toCity: string;
+    fromCityEn: string;
+    toCityEn: string;
     orderNo: string;
+    routeText: string;
   };
   driver: {
     name: string;
@@ -59,6 +79,16 @@ export interface DeliveryOrder {
   load: {
     type: string;
     weight: string;
+    weightUnit: string;
+    quantity: string;
+    dimensions: string;
+    packingUnit: string;
+    condition: string;
+  };
+  payment: {
+    method: string;
+    paidBy: string;
+    instructions: string;
   };
 }
 
@@ -67,4 +97,16 @@ export interface AlertState {
   title: string;
   message: string;
   type?: "success" | "error" | "info" | "warning";
+}
+
+export function statusLabelAr(status?: InvoiceStatus): string {
+  switch (status) {
+    case "Delivered":
+      return "تم التسليم";
+    case "Cancelled":
+      return "ملغاة";
+    case "In Transit":
+    default:
+      return "نشطة";
+  }
 }

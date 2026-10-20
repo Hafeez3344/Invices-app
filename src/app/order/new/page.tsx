@@ -26,10 +26,10 @@ export default function NewOrderPage() {
         `ord_${Math.random().toString(36).substring(2, 11)}_${Date.now().toString(36)}`;
 
       const now = new Date();
-      const deliveryDate = formatDate(now);
-      const receipt = new Date(now);
-      receipt.setDate(receipt.getDate() + 5);
-      const receiptDate = formatDate(receipt);
+      const receiptDate = formatDate(now);
+      const delivery = new Date(now);
+      delivery.setDate(delivery.getDate() + 5);
+      const deliveryDate = formatDate(delivery);
 
       let invoiceNumber = DEFAULT_ORDER_TEMPLATE.invoiceNumber;
       try {
