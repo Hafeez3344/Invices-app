@@ -2,125 +2,115 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
 const PAGE_WIDTH_PX = 794;
-const PAGE_HEIGHT_PX = 1123;
 
 /**
- * Capture PDF pages from a clean off-screen clone.
- * Avoids parent CSS transform/zoom and html2canvas RTL bugs.
+ * Fast single-page PDF capture.
+ * Converts editable inputs to plain text and hides UI-only controls.
  */
 export async function downloadElementAsPdf(
   element: HTMLElement,
   filename: string
 ): Promise<Blob> {
-  const pages = Array.from(
-    element.querySelectorAll<HTMLElement>(".pdf-page")
-  );
-  const targets = pages.length > 0 ? pages : [element];
+  const page =
+    (element.classList.contains("pdf-page")
+      ? element
+      : element.querySelector<HTMLElement>(".pdf-page")) || element;
 
   const host = document.createElement("div");
-  host.setAttribute("data-pdf-capture-root", "true");
-  host.style.cssText = [
-    "position:fixed",
-    "left:-12000px",
-    "top:0",
-    "width:" + PAGE_WIDTH_PX + "px",
-    "background:#ffffff",
-    "z-index:-1",
-    "opacity:1",
-    "pointer-events:none",
-    "overflow:visible",
-  ].join(";");
+  host.style.cssText =
+    "position:fixed;left:-12000px;top:0;width:794px;background:#fff;z-index:-1;pointer-events:none;";
   document.body.appendChild(host);
 
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "pt",
-    format: "a4",
-  });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-
   try {
-    if (document.fonts?.ready) {
-      await document.fonts.ready;
-    }
+    if (document.fonts?.ready) await document.fonts.ready;
 
-    for (let i = 0; i < targets.length; i++) {
-      host.innerHTML = "";
-      const clone = targets[i].cloneNode(true) as HTMLElement;
+    const clone = page.cloneNode(true) as HTMLElement;
+    clone.style.cssText = [
+      "width:794px",
+      "max-width:none",
+      "transform:none",
+      "zoom:1",
+      "position:relative",
+      "background:#ffffff",
+      "box-shadow:none",
+      "margin:0",
+      "box-sizing:border-box",
+      "font-family:Cairo,Tahoma,Arial,sans-serif",
+      "direction:rtl",
+    ].join(";");
 
-      // Neutralize anything that breaks canvas capture
-      clone.style.cssText = [
-        "width:" + PAGE_WIDTH_PX + "px",
-        "min-height:" + PAGE_HEIGHT_PX + "px",
-        "max-width:none",
-        "transform:none",
-        "zoom:1",
-        "position:relative",
-        "background:#ffffff",
-        "box-shadow:none",
-        "margin:0",
-        "padding:28px",
-        "box-sizing:border-box",
-        "font-family:Cairo, Tahoma, Arial, sans-serif",
-        "direction:rtl",
-        "color:#000000",
+    // Hide edit-only controls
+    clone.querySelectorAll(".no-print").forEach((el) => {
+      (el as HTMLElement).style.display = "none";
+    });
+
+    // Replace inputs with static text (faster + cleaner PDF)
+    clone.querySelectorAll("input.edit-field").forEach((node) => {
+      const input = node as HTMLInputElement;
+      const span = document.createElement("div");
+      span.textContent = input.value || "—";
+      span.style.cssText = [
+        "font-weight:700",
+        "font-size:13px",
+        "color:#0f172a",
+        "padding:4px 2px",
+        "min-height:22px",
+        "word-break:break-word",
+        input.dir === "ltr" ? "direction:ltr;text-align:right" : "",
       ].join(";");
+      input.replaceWith(span);
+    });
 
-      host.appendChild(clone);
+    host.appendChild(clone);
 
-      // Wait for images in clone
-      const imgs = Array.from(clone.querySelectorAll("img"));
-      await Promise.all(
-        imgs.map(
-          (img) =>
-            new Promise<void>((resolve) => {
-              if (img.complete) return resolve();
-              img.onload = () => resolve();
-              img.onerror = () => resolve();
-            })
-        )
-      );
+    const imgs = Array.from(clone.querySelectorAll("img"));
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete) return resolve();
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            setTimeout(() => resolve(), 800);
+          })
+      )
+    );
 
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
 
-      const canvas = await html2canvas(clone, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        width: PAGE_WIDTH_PX,
-        height: Math.max(clone.scrollHeight, PAGE_HEIGHT_PX),
-        windowWidth: PAGE_WIDTH_PX,
-        windowHeight: Math.max(clone.scrollHeight, PAGE_HEIGHT_PX),
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (_doc, cloned) => {
-          cloned.style.transform = "none";
-          cloned.style.zoom = "1";
-          cloned.querySelectorAll<HTMLElement>("*").forEach((el) => {
-            el.style.letterSpacing = "normal";
-            const tf = el.style.transform;
-            if (tf && tf !== "none") el.style.transform = "none";
-          });
-        },
-      });
+    const canvas = await html2canvas(clone, {
+      scale: 1.5,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      width: PAGE_WIDTH_PX,
+      windowWidth: PAGE_WIDTH_PX,
+      scrollX: 0,
+      scrollY: 0,
+    });
 
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const margin = 10;
-      const usableW = pageWidth - margin * 2;
-      const usableH = pageHeight - margin * 2;
-      const ratio = Math.min(usableW / canvas.width, usableH / canvas.height);
-      const imgWidth = canvas.width * ratio;
-      const imgHeight = canvas.height * ratio;
-      const x = (pageWidth - imgWidth) / 2;
-      const y = margin;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+    const usableW = pageWidth - margin * 2;
+    const usableH = pageHeight - margin * 2;
+    const ratio = Math.min(usableW / canvas.width, usableH / canvas.height);
+    const imgWidth = canvas.width * ratio;
+    const imgHeight = canvas.height * ratio;
+    const x = (pageWidth - imgWidth) / 2;
 
-      if (i > 0) pdf.addPage();
-      pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight, undefined, "FAST");
-    }
-
+    pdf.addImage(
+      canvas.toDataURL("image/jpeg", 0.92),
+      "JPEG",
+      x,
+      margin,
+      imgWidth,
+      imgHeight,
+      undefined,
+      "FAST"
+    );
     pdf.save(filename);
     return pdf.output("blob");
   } finally {

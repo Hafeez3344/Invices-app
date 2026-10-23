@@ -9,8 +9,6 @@ import {
   ZoomOut,
   RotateCw,
   LoaderCircle,
-  Plus,
-  Trash2,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import AlertModal from "@/components/AlertModal";
@@ -34,7 +32,7 @@ export default function OrderEditor() {
 
   const [order, setOrder] = useState<DeliveryOrder | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState("");
-  const [zoom, setZoom] = useState(0.85);
+  const [zoom, setZoom] = useState(1);
   const [busy, setBusy] = useState(false);
   const [busyLabel, setBusyLabel] = useState("");
   const [alert, setAlert] = useState<AlertState>({
@@ -69,7 +67,6 @@ export default function OrderEditor() {
     return `${window.location.origin}/track/${order.id}`;
   }, [order]);
 
-  // Build a scannable QR as soon as the order is ready (preview + PDF)
   useEffect(() => {
     if (!order?.id || !customerUrl) return;
     let cancelled = false;
@@ -88,7 +85,7 @@ export default function OrderEditor() {
           setQrCodeUrl(data.qrCodeUrl);
         }
       } catch {
-        /* ignore preview QR errors */
+        /* ignore */
       }
     })();
     return () => {
@@ -99,35 +96,6 @@ export default function OrderEditor() {
   function updateOrder(next: DeliveryOrder) {
     setOrder(next);
     sessionStorage.setItem("currentOrder", JSON.stringify(next));
-  }
-
-  function field<K extends keyof DeliveryOrder>(
-    key: K,
-    value: DeliveryOrder[K]
-  ) {
-    if (!order) return;
-    updateOrder({
-      ...order,
-      [key]: value,
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  function nested<
-    S extends
-      | "company"
-      | "car"
-      | "receiver"
-      | "sender"
-      | "transport"
-      | "driver"
-  >(section: S, key: keyof DeliveryOrder[S], value: string) {
-    if (!order) return;
-    updateOrder({
-      ...order,
-      [section]: { ...order[section], [key]: value },
-      updatedAt: new Date().toISOString(),
-    });
   }
 
   function updateItem(itemId: string, key: keyof GoodsItem, value: string) {
@@ -165,28 +133,11 @@ export default function OrderEditor() {
     });
   }
 
-  async function generateQr(status: InvoiceStatus = "In Transit") {
-    if (!order) return "";
-    const res = await fetch("/api/generate-qr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: customerUrl || order.id,
-        url: customerUrl || order.id,
-        status,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "QR generation API failed");
-    setQrCodeUrl(data.qrCodeUrl);
-    return data.qrCodeUrl as string;
-  }
-
   async function handleDownload() {
     if (!order) return;
     setBusy(true);
     try {
-      setBusyLabel("Fetching status...");
+      setBusyLabel("Preparing...");
       let status: InvoiceStatus = order.status || "In Transit";
       try {
         const st = await fetch(`/api/invoices/${order.id}`);
@@ -195,28 +146,29 @@ export default function OrderEditor() {
           if (json?.invoice?.status) status = json.invoice.status;
         }
       } catch {
-        /* keep local status */
+        /* keep local */
       }
 
-      setBusyLabel("Generating QR code...");
-      const qr = await generateQr(status);
-      await new Promise((r) => setTimeout(r, 350));
+      setBusyLabel("QR...");
+      let qr = qrCodeUrl;
+      if (!qr) {
+        const res = await fetch("/api/generate-qr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: customerUrl, status }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "QR failed");
+        qr = data.qrCodeUrl;
+        setQrCodeUrl(qr);
+        await new Promise((r) => setTimeout(r, 150));
+      }
 
-      setBusyLabel("Generating PDF...");
-      // Reset preview zoom so capture isn't affected by CSS transform
-      const prevZoom = zoom;
-      setZoom(1);
-      await new Promise((r) => setTimeout(r, 120));
-
+      setBusyLabel("PDF...");
       const el = document.getElementById("delivery-order-template");
       if (!el) throw new Error("Template not found");
 
-      const filename = `wathiqat-naql-${order.invoiceNumber}.pdf`;
-      try {
-        await downloadElementAsPdf(el, filename);
-      } finally {
-        setZoom(prevZoom);
-      }
+      await downloadElementAsPdf(el, `invoice-${order.invoiceNumber}.pdf`);
 
       const withMeta: DeliveryOrder = {
         ...order,
@@ -225,7 +177,6 @@ export default function OrderEditor() {
         encryptedInvoiceId: order.encryptedInvoiceId || order.id,
       };
 
-      setBusyLabel("Saving...");
       await fetch("/api/invoices", {
         method: "POST",
         headers: authHeaders(),
@@ -237,7 +188,7 @@ export default function OrderEditor() {
       setAlert({
         isOpen: true,
         title: "Success",
-        message: "PDF downloaded (وثيقة نقل + بيان حمولة) and saved to history.",
+        message: "PDF downloaded successfully.",
         type: "success",
       });
     } catch (e) {
@@ -245,10 +196,7 @@ export default function OrderEditor() {
       setAlert({
         isOpen: true,
         title: "Failed",
-        message:
-          e instanceof Error
-            ? e.message
-            : "An error occurred while downloading the invoice",
+        message: e instanceof Error ? e.message : "Download failed",
         type: "error",
       });
     } finally {
@@ -260,12 +208,7 @@ export default function OrderEditor() {
   if (!order) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 font-cairo">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-4 border-[#204978] border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-semibold text-gray-600">
-            Loading invoice...
-          </span>
-        </div>
+        <div className="w-8 h-8 border-4 border-[#204978] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -274,328 +217,79 @@ export default function OrderEditor() {
     <div className="min-h-screen bg-gray-100 font-cairo">
       <AppHeader />
 
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 p-4 sm:p-6 lg:flex-row">
-        <aside className="w-full lg:w-[380px] shrink-0 space-y-4">
+      <div className="mx-auto max-w-4xl px-3 sm:px-4 py-3 pb-8">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
             className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-700 border border-gray-200"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+            Invoice #{order.invoiceNumber}
           </button>
 
-          <Section title="بيانات الوثيقة">
-            <Field
-              label="رقم الوثيقة"
-              value={order.invoiceNumber}
-              onChange={(v) => field("invoiceNumber", v)}
-            />
-            <Field
-              label="رقم الترخيص"
-              value={order.licenseNumber}
-              onChange={(v) => field("licenseNumber", v)}
-            />
-            <Field
-              label="Start Date / تاريخ البداية"
-              value={order.receiptDate}
-              onChange={(v) => field("receiptDate", v)}
-            />
-            <Field
-              label="End Date / تاريخ النهاية (بعد 5 أيام)"
-              value={order.deliveryDate}
-              onChange={(v) => field("deliveryDate", v)}
-            />
-            <Field
-              label="قابلة للتداول"
-              value={order.negotiable}
-              onChange={(v) => field("negotiable", v)}
-            />
-          </Section>
-
-          <Section title="Owner Details">
-            <Field
-              label="الاسم / Name (اسم المرسل)"
-              value={order.sender.name}
-              onChange={(v) => nested("sender", "name", v)}
-            />
-            <Field
-              label="Owner ID"
-              value={order.car.idNumber}
-              onChange={(v) => nested("car", "idNumber", v)}
-            />
-            <Field
-              label="Mobile Number"
-              value={order.company.phone}
-              onChange={(v) => nested("company", "phone", v)}
-            />
-            <Field
-              label="Notes"
-              value={order.company.notes}
-              onChange={(v) => nested("company", "notes", v)}
-            />
-          </Section>
-
-          <Section title="بيانات السائق">
-            <Field
-              label="اسم السائق"
-              value={order.driver.name}
-              onChange={(v) => nested("driver", "name", v)}
-            />
-            <Field
-              label="رقم هوية السائق"
-              value={order.driver.iqamaNumber}
-              onChange={(v) => nested("driver", "iqamaNumber", v)}
-            />
-            <Field
-              label="رقم الهاتف"
-              value={order.driver.mobile}
-              onChange={(v) => nested("driver", "mobile", v)}
-            />
-          </Section>
-
-          <Section title="بيانات الشاحنة">
-            <Field
-              label="لوحة المركبة"
-              value={order.car.plateNumber}
-              onChange={(v) => nested("car", "plateNumber", v)}
-            />
-            <Field
-              label="نوع لوحة المركبة"
-              value={order.car.plateType}
-              onChange={(v) => nested("car", "plateType", v)}
-            />
-          </Section>
-
-          <Section title="بيانات المرسل">
-            <Field
-              label="الاسم"
-              value={order.sender.name}
-              onChange={(v) => nested("sender", "name", v)}
-            />
-            <Field
-              label="العنوان"
-              value={order.sender.address}
-              onChange={(v) => nested("sender", "address", v)}
-            />
-            <Field
-              label="المدينة"
-              value={order.sender.city}
-              onChange={(v) => nested("sender", "city", v)}
-            />
-            <Field
-              label="المدينة (EN)"
-              value={order.transport.fromCityEn}
-              onChange={(v) => nested("transport", "fromCityEn", v)}
-            />
-            <Field
-              label="رقم الهاتف"
-              value={order.sender.phone}
-              onChange={(v) => nested("sender", "phone", v)}
-            />
-            <Field
-              label="ملاحظات المرسل"
-              value={order.sender.notes}
-              onChange={(v) => nested("sender", "notes", v)}
-            />
-          </Section>
-
-          <Section title="بيانات المرسل إليه">
-            <Field
-              label="الاسم"
-              value={order.receiver.name}
-              onChange={(v) => nested("receiver", "name", v)}
-            />
-            <Field
-              label="العنوان"
-              value={order.receiver.address}
-              onChange={(v) => nested("receiver", "address", v)}
-            />
-            <Field
-              label="المدينة"
-              value={order.receiver.city}
-              onChange={(v) => nested("receiver", "city", v)}
-            />
-            <Field
-              label="المدينة (EN)"
-              value={order.transport.toCityEn}
-              onChange={(v) => nested("transport", "toCityEn", v)}
-            />
-            <Field
-              label="رقم الهاتف"
-              value={order.receiver.mobile}
-              onChange={(v) => nested("receiver", "mobile", v)}
-            />
-            <Field
-              label="ملاحظات المرسل إليه"
-              value={order.receiver.notes}
-              onChange={(v) => nested("receiver", "notes", v)}
-            />
-          </Section>
-
-          <Section title="خط سير الرحلة">
-            <Field
-              label="من مدينة"
-              value={order.transport.fromCity}
-              onChange={(v) =>
-                updateOrder({
-                  ...order,
-                  transport: { ...order.transport, fromCity: v },
-                  sender: { ...order.sender, city: v },
-                  updatedAt: new Date().toISOString(),
-                })
-              }
-            />
-            <Field
-              label="إلى مدينة"
-              value={order.transport.toCity}
-              onChange={(v) =>
-                updateOrder({
-                  ...order,
-                  transport: { ...order.transport, toCity: v },
-                  receiver: { ...order.receiver, city: v },
-                  updatedAt: new Date().toISOString(),
-                })
-              }
-            />
-            <Field
-              label="خط السير (اختياري)"
-              value={order.transport.routeText}
-              onChange={(v) => nested("transport", "routeText", v)}
-            />
-          </Section>
-
-          <Section title="بيانات البضاعة">
-            {order.items.map((item, index) => (
-              <div
-                key={item.id}
-                className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-[#204978]">
-                    Item {index + 1} / صنف {index + 1}
-                  </p>
-                  {order.items.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.id)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <Field
-                  label="وصف البضاعة"
-                  value={item.type}
-                  onChange={(v) => updateItem(item.id, "type", v)}
-                />
-                <Field
-                  label="العدد"
-                  value={item.quantity}
-                  onChange={(v) => updateItem(item.id, "quantity", v)}
-                />
-                <Field
-                  label="الوزن"
-                  value={item.weight}
-                  onChange={(v) => updateItem(item.id, "weight", v)}
-                />
-                <Field
-                  label="وحدة الوزن"
-                  value={item.weightUnit}
-                  onChange={(v) => updateItem(item.id, "weightUnit", v)}
-                />
-                <Field
-                  label="الأبعاد (متر)"
-                  value={item.dimensions}
-                  onChange={(v) => updateItem(item.id, "dimensions", v)}
-                />
-                <Field
-                  label="وحدة التعبئة"
-                  value={item.packingUnit}
-                  onChange={(v) => updateItem(item.id, "packingUnit", v)}
-                />
-                <Field
-                  label="الحالة"
-                  value={item.condition}
-                  onChange={(v) => updateItem(item.id, "condition", v)}
-                />
-              </div>
-            ))}
-
+          <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
             <button
               type="button"
-              onClick={addItem}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#204978] bg-white py-2.5 text-sm font-bold text-[#204978] hover:bg-blue-50"
+              onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))}
+              className="rounded-md p-2 hover:bg-gray-100"
+              title="Zoom Out"
             >
-              <Plus className="h-4 w-4" />
-              Add another item / إضافة صنف آخر
+              <ZoomOut className="h-4 w-4" />
             </button>
-          </Section>
-
-          <button
-            type="button"
-            disabled={busy}
-            onClick={handleDownload}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#204978] py-3 text-sm font-bold text-white hover:bg-[#18365a] disabled:opacity-60"
-          >
-            {busy ? (
-              <LoaderCircle className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            {busy ? busyLabel || "Generating PDF..." : "Download PDF"}
-          </button>
-        </aside>
-
-        <main className="min-w-0 flex-1">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="font-bold text-slate-800">
-              Preview — وثيقة نقل / بيان حمولة
-            </h2>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))}
-                className="rounded-lg bg-white border border-gray-200 p-2"
-                title="Zoom Out"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom(0.85)}
-                className="rounded-lg bg-white border border-gray-200 p-2"
-                title="Reset Zoom"
-              >
-                <RotateCw className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(1.4, z + 0.1))}
-                className="rounded-lg bg-white border border-gray-200 p-2"
-                title="Zoom In"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          <div
-            className="overflow-auto rounded-xl border border-gray-200 bg-slate-200/60 p-4"
-            style={{ maxHeight: "calc(100vh - 200px)" }}
-          >
-            <div
-              style={{
-                transform: `scale(${zoom})`,
-                transformOrigin: "top center",
-              }}
+            <span className="min-w-[3rem] text-center text-xs font-semibold text-slate-600">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(1.3, z + 0.1))}
+              className="rounded-md p-2 hover:bg-gray-100"
+              title="Zoom In"
             >
-              <DeliveryOrderTemplate order={order} qrCodeUrl={qrCodeUrl} />
-            </div>
+              <ZoomIn className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom(1)}
+              className="rounded-md p-2 hover:bg-gray-100"
+              title="Reset"
+            >
+              <RotateCw className="h-4 w-4" />
+            </button>
           </div>
-        </main>
+        </div>
+
+        <div className="overflow-auto rounded-xl bg-slate-200/50 p-2 sm:p-4">
+          <div
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: "top center",
+            }}
+          >
+            <DeliveryOrderTemplate
+              order={order}
+              qrCodeUrl={qrCodeUrl}
+              onChange={updateOrder}
+              onAddItem={addItem}
+              onRemoveItem={removeItem}
+              onUpdateItem={updateItem}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={busy}
+          onClick={handleDownload}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#204978] py-3.5 text-sm font-bold text-white hover:bg-[#18365a] disabled:opacity-60"
+        >
+          {busy ? (
+            <LoaderCircle className="h-5 w-5 animate-spin" />
+          ) : (
+            <Download className="h-5 w-5" />
+          )}
+          {busy ? busyLabel || "Generating..." : "Download"}
+        </button>
       </div>
 
       <AlertModal
@@ -606,41 +300,5 @@ export default function OrderEditor() {
         onClose={() => setAlert({ ...alert, isOpen: false })}
       />
     </div>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-3">
-      <h2 className="font-bold text-[#204978]">{title}</h2>
-      {children}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block text-xs font-semibold text-slate-600">
-      {label}
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-[#204978]"
-      />
-    </label>
   );
 }

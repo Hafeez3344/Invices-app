@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { saveSession, isLoggedIn } from "@/lib/session";
 import { BRAND } from "@/lib/defaults";
 
@@ -9,6 +10,7 @@ export default function LoginForm() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(true);
@@ -64,7 +66,9 @@ export default function LoginForm() {
             className="mb-4 h-20 w-20 rounded-2xl object-cover shadow-sm border border-slate-100"
           />
           <h1 className="text-2xl font-bold text-[#204978]">{BRAND.nameAr}</h1>
-          <p className="mt-1 text-sm text-slate-500">{BRAND.name} — Delivery Orders</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {BRAND.name} — Delivery Orders
+          </p>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">
@@ -84,14 +88,28 @@ export default function LoginForm() {
             <label className="mb-1 block text-sm font-semibold text-slate-700">
               Password
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-[#204978] focus:ring-2 focus:ring-[#204978]/20"
-              autoComplete="current-password"
-              required
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 pr-11 outline-none focus:border-[#204978] focus:ring-2 focus:ring-[#204978]/20"
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-500 hover:text-[#204978]"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" />
+                ) : (
+                  <Eye className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           </div>
 
           {error && (

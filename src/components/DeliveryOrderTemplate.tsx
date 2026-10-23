@@ -1,613 +1,509 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { buildRouteText } from "@/lib/defaults";
-import { statusLabelAr, type DeliveryOrder } from "@/lib/types";
+import { Plus, Trash2 } from "lucide-react";
+import type { DeliveryOrder, GoodsItem } from "@/lib/types";
 
 type Props = {
   order: DeliveryOrder;
   qrCodeUrl?: string;
+  onChange: (next: DeliveryOrder) => void;
+  onAddItem: () => void;
+  onRemoveItem: (id: string) => void;
+  onUpdateItem: (id: string, key: keyof GoodsItem, value: string) => void;
 };
 
-const GREEN = "#1B7A6E";
-const GREEN_DARK = "#155F56";
-const LABEL_BG = "#F3F7F6";
-const BORDER = "#9CA3AF";
+const BLUE = "#204978";
+const BORDER = "#BFDBFE";
 
-/** Inline styles — more reliable for html2canvas PDF export than Tailwind utilities */
 const pageStyle: CSSProperties = {
   width: 794,
-  minHeight: 1123,
+  maxWidth: "100%",
   boxSizing: "border-box",
   background: "#ffffff",
-  padding: "28px 28px 40px",
-  color: "#000000",
+  padding: "20px 22px 24px",
+  color: "#0f172a",
   fontFamily: "Cairo, Tahoma, Arial, sans-serif",
-  fontSize: 12,
+  fontSize: 13,
   direction: "rtl",
-  position: "relative",
-  overflow: "hidden",
+  border: "1px solid #E2E8F0",
+  borderRadius: 12,
 };
 
-const tableStyle: CSSProperties = {
+const inputStyle: CSSProperties = {
   width: "100%",
-  borderCollapse: "separate",
-  borderSpacing: 0,
-  tableLayout: "fixed",
-  marginBottom: 12,
-  border: `1px solid ${BORDER}`,
+  border: "1px solid #CBD5E1",
+  borderRadius: 6,
+  padding: "6px 8px",
+  fontSize: 13,
+  fontFamily: "inherit",
+  background: "#F8FAFC",
+  color: "#0f172a",
+  outline: "none",
+  boxSizing: "border-box",
 };
 
-const thStyle: CSSProperties = {
-  border: `1px solid ${BORDER}`,
-  padding: "8px 6px",
+const sectionTitle: CSSProperties = {
+  background: BLUE,
+  color: "#fff",
   fontWeight: 700,
-  background: "#E8F3F1",
-  textAlign: "center",
-  fontSize: 11,
-  verticalAlign: "middle",
+  fontSize: 13,
+  padding: "8px 12px",
+  borderRadius: "8px 8px 0 0",
 };
 
-const tdLabelStyle: CSSProperties = {
-  width: "30%",
+const sectionBody: CSSProperties = {
   border: `1px solid ${BORDER}`,
-  padding: "8px 10px",
-  fontWeight: 700,
-  color: GREEN_DARK,
-  background: LABEL_BG,
-  verticalAlign: "middle",
-  whiteSpace: "nowrap",
+  borderTop: "none",
+  borderRadius: "0 0 8px 8px",
+  padding: 10,
+  marginBottom: 10,
+  background: "#fff",
 };
 
-const tdValueStyle: CSSProperties = {
-  border: `1px solid ${BORDER}`,
-  padding: "8px 10px",
-  verticalAlign: "middle",
-  wordBreak: "break-word",
-};
+export default function DeliveryOrderTemplate({
+  order,
+  qrCodeUrl,
+  onChange,
+  onAddItem,
+  onRemoveItem,
+  onUpdateItem,
+}: Props) {
+  function set<K extends keyof DeliveryOrder>(key: K, value: DeliveryOrder[K]) {
+    onChange({ ...order, [key]: value, updatedAt: new Date().toISOString() });
+  }
 
-export default function DeliveryOrderTemplate({ order, qrCodeUrl }: Props) {
-  const statusAr = statusLabelAr(order.status);
-  const route = buildRouteText(order);
+  function setNested<
+    S extends "company" | "car" | "receiver" | "sender" | "transport" | "driver"
+  >(section: S, key: keyof DeliveryOrder[S], value: string) {
+    onChange({
+      ...order,
+      [section]: { ...order[section], [key]: value },
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  const items = order.items?.length ? order.items : [order.load];
 
   return (
     <div
       id="delivery-order-template"
-      style={{
-        width: 794,
-        margin: "0 auto",
-        fontFamily: "Cairo, Tahoma, Arial, sans-serif",
-        color: "#000",
-        direction: "rtl",
-      }}
+      className="pdf-page"
+      style={pageStyle}
       dir="rtl"
+      data-editable-form="true"
     >
-      {/* PAGE 1 */}
-      <article className="pdf-page" style={{ ...pageStyle, marginBottom: 24 }}>
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, marginBottom: 14 }}>
-          <tbody>
-            <tr>
-              <td style={{ width: 70, verticalAlign: "middle" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={order.company.logoDataUrl || "/wasl-logo.jpg"}
-                  alt="logo"
-                  width={56}
-                  height={56}
-                  style={{ width: 56, height: 56, objectFit: "contain", display: "block" }}
-                  crossOrigin="anonymous"
-                />
-              </td>
-              <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                <div
-                  style={{
-                    fontSize: 28,
-                    fontWeight: 800,
-                    color: GREEN_DARK,
-                    letterSpacing: "normal",
-                    lineHeight: 1.3,
-                  }}
-                >
-                  وثيقة نقل
-                </div>
-              </td>
-              <td style={{ width: 150, verticalAlign: "top" }}>
-                <div
-                  data-role="qr-code"
-                  style={{
-                    width: 140,
-                    height: 140,
-                    border: `1px solid ${BORDER}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginRight: "auto",
-                    background: "#fff",
-                    padding: 4,
-                    boxSizing: "border-box",
-                  }}
-                >
-                  {qrCodeUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={qrCodeUrl}
-                      alt="QR Code"
-                      width={130}
-                      height={130}
-                      style={{
-                        width: 130,
-                        height: 130,
-                        objectFit: "contain",
-                        display: "block",
-                      }}
-                    />
-                  ) : (
-                    <span style={{ fontSize: 10, color: "#9CA3AF" }}>QR</span>
-                  )}
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, marginBottom: 14 }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: "4px 0", width: "50%" }}>
-                <Meta label="رقم الوثيقة:" value={order.invoiceNumber} />
-              </td>
-              <td style={{ padding: "4px 0", width: "50%" }}>
-                <Meta label="رقم الترخيص:" value={order.licenseNumber} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: "4px 0" }} colSpan={2}>
-                <span style={{ fontWeight: 700, marginLeft: 6 }}>تاريخ الوثيقة:</span>
-                <span style={{ fontWeight: 700, direction: "ltr", unicodeBidi: "isolate" }}>
-                  {order.receiptDate || "—"}
-                </span>
-                <span style={{ fontWeight: 700, margin: "0 8px" }}>إلى</span>
-                <span style={{ fontWeight: 700, direction: "ltr", unicodeBidi: "isolate" }}>
-                  {order.deliveryDate || "—"}
-                </span>
-                <span style={{ color: "#6B7280", marginRight: 8 }}>(5 أيام)</span>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: "4px 0" }}>
-                <Meta label="Start Date:" value={order.receiptDate} />
-              </td>
-              <td style={{ padding: "4px 0" }}>
-                <Meta label="End Date:" value={order.deliveryDate} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: "4px 0" }} colSpan={2}>
-                <span style={{ fontWeight: 700, marginLeft: 8 }}>الحالة:</span>
-                <span
-                  style={{
-                    display: "inline-block",
-                    background: GREEN,
-                    color: "#fff",
-                    fontWeight: 700,
-                    fontSize: 11,
-                    padding: "3px 10px",
-                    borderRadius: 4,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {statusAr}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <SectionBar title="Owner Details:" />
-        <table style={tableStyle}>
-          <tbody>
-            <tr>
-              <td style={tdLabelStyle}>الاسم / Name:</td>
-              <td style={tdValueStyle} colSpan={3}>
-                {order.sender.name}
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>Owner ID:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.car.idNumber}
-              </td>
-              <td style={tdLabelStyle}>Mobile Number:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.company.phone}
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>Notes:</td>
-              <td style={tdValueStyle} colSpan={3}>
-                {order.company.notes || "—"}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table style={{ ...tableStyle, marginBottom: 12 }}>
-          <tbody>
-            <tr>
-              <td
-                colSpan={2}
-                style={{
-                  background: GREEN,
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  padding: "8px 12px",
-                  border: `1px solid ${BORDER}`,
-                  width: "50%",
-                }}
-              >
-                بيانات السائق:
-              </td>
-              <td
-                colSpan={2}
-                style={{
-                  background: GREEN,
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  padding: "8px 12px",
-                  border: `1px solid ${BORDER}`,
-                  width: "50%",
-                }}
-              >
-                بيانات الشاحنة:
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>اسم السائق:</td>
-              <td style={tdValueStyle}>{order.driver.name}</td>
-              <td style={tdLabelStyle}>لوحة المركبة:</td>
-              <td style={tdValueStyle}>{order.car.plateNumber}</td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>رقم هوية السائق:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.driver.iqamaNumber}
-              </td>
-              <td style={tdLabelStyle}>نوع لوحة المركبة:</td>
-              <td style={tdValueStyle}>{order.car.plateType}</td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>رقم الهاتف:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.driver.mobile}
-              </td>
-              <td style={tdLabelStyle}>تاريخ التسليم المتوقع:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.deliveryDate}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 14,
+          borderBottom: `2px solid ${BLUE}`,
+          paddingBottom: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={order.company.logoDataUrl || "/wasl-logo.jpg"}
+            alt="logo"
+            width={64}
+            height={64}
+            style={{
+              width: 64,
+              height: 64,
+              objectFit: "cover",
+              borderRadius: 10,
+              border: "1px solid #E2E8F0",
+            }}
+            crossOrigin="anonymous"
+          />
+          <div style={{ flex: 1 }}>
+            <Field
+              value={order.company.nameAr}
+              onChange={(v) => setNested("company", "nameAr", v)}
+              style={{ fontWeight: 800, fontSize: 16, color: BLUE, marginBottom: 4 }}
+            />
+            <Field
+              value={order.company.addressAr}
+              onChange={(v) => setNested("company", "addressAr", v)}
+              style={{ fontSize: 12, marginBottom: 4 }}
+            />
+            <Field
+              value={order.company.phone}
+              onChange={(v) => setNested("company", "phone", v)}
+              dir="ltr"
+              style={{ fontSize: 12 }}
+            />
+          </div>
+        </div>
         <div
+          data-role="qr-code"
           style={{
-            textAlign: "center",
-            fontSize: 11,
-            color: "#6B7280",
-            marginTop: 48,
+            width: 100,
+            height: 100,
+            border: "1px solid #CBD5E1",
+            borderRadius: 8,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#fff",
+            flexShrink: 0,
           }}
         >
-          الصفحة 1 من 2
+          {qrCodeUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={qrCodeUrl}
+              alt="QR"
+              width={92}
+              height={92}
+              style={{ width: 92, height: 92, objectFit: "contain" }}
+            />
+          ) : (
+            <span style={{ fontSize: 10, color: "#94A3B8" }}>QR</span>
+          )}
         </div>
-      </article>
+      </div>
 
-      {/* PAGE 2 */}
-      <article className="pdf-page" style={pageStyle}>
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, marginBottom: 14 }}>
-          <tbody>
-            <tr>
-              <td style={{ width: 80, verticalAlign: "top" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={order.company.logoDataUrl || "/wasl-logo.jpg"}
-                  alt="logo"
-                  width={56}
-                  height={56}
-                  style={{ width: 56, height: 56, objectFit: "contain", display: "block" }}
-                  crossOrigin="anonymous"
-                />
-              </td>
-              <td style={{ textAlign: "center", verticalAlign: "middle" }}>
-                <div
-                  style={{
-                    fontSize: 26,
-                    fontWeight: 800,
-                    color: GREEN_DARK,
-                    letterSpacing: "normal",
-                    lineHeight: 1.3,
-                  }}
-                >
-                  وثيقة بيان حمولة
-                </div>
-              </td>
-              <td style={{ width: 80 }} />
-            </tr>
-          </tbody>
-        </table>
+      {/* Dates row */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <MiniCard label="Invoice Number / رقم الطلب">
+          <Field
+            value={order.invoiceNumber}
+            onChange={(v) => set("invoiceNumber", v)}
+            dir="ltr"
+          />
+        </MiniCard>
+        <MiniCard label="Receipt Date / تاريخ الاستلام">
+          <Field
+            value={order.receiptDate}
+            onChange={(v) => set("receiptDate", v)}
+            dir="ltr"
+          />
+        </MiniCard>
+        <MiniCard label="Delivery Date / تاريخ التسليم">
+          <Field
+            value={order.deliveryDate}
+            onChange={(v) => set("deliveryDate", v)}
+            dir="ltr"
+          />
+        </MiniCard>
+      </div>
 
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, marginBottom: 14 }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: "4px 0", width: "33%" }}>
-                <Meta label="رقم الوثيقة:" value={order.invoiceNumber} />
-              </td>
-              <td style={{ padding: "4px 0", width: "33%" }}>
-                <span style={{ fontWeight: 700, marginLeft: 8 }}>الحالة:</span>
-                <span
-                  style={{
-                    display: "inline-block",
-                    background: GREEN,
-                    color: "#fff",
-                    fontWeight: 700,
-                    fontSize: 11,
-                    padding: "3px 10px",
-                    borderRadius: 4,
-                  }}
-                >
-                  {statusAr}
-                </span>
-              </td>
-              <td style={{ padding: "4px 0", width: "34%" }}>
-                <Meta label="قابلة للتداول:" value={order.negotiable} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: "4px 0" }} colSpan={3}>
-                <span style={{ fontWeight: 700, marginLeft: 6 }}>تاريخ الوثيقة:</span>
-                <span style={{ fontWeight: 700, direction: "ltr", unicodeBidi: "isolate" }}>
-                  {order.receiptDate || "—"}
-                </span>
-                <span style={{ fontWeight: 700, margin: "0 8px" }}>إلى</span>
-                <span style={{ fontWeight: 700, direction: "ltr", unicodeBidi: "isolate" }}>
-                  {order.deliveryDate || "—"}
-                </span>
-                <span style={{ color: "#6B7280", marginRight: 8 }}>(Start → End / 5 days)</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      {/* Car */}
+      <div style={sectionTitle}>Car Information / معلومات المركبة</div>
+      <div style={sectionBody}>
+        <Row3
+          a={{
+            label: "Plate number / لوحة",
+            value: order.car.plateNumber,
+            onChange: (v) => setNested("car", "plateNumber", v),
+          }}
+          b={{
+            label: "Owner / المالك",
+            value: order.car.owner,
+            onChange: (v) => setNested("car", "owner", v),
+          }}
+          c={{
+            label: "ID number / رقم الهوية",
+            value: order.car.idNumber,
+            onChange: (v) => setNested("car", "idNumber", v),
+            dir: "ltr",
+          }}
+        />
+      </div>
 
-        <table style={tableStyle}>
-          <tbody>
-            <tr>
-              <td
-                colSpan={2}
-                style={{
-                  background: GREEN,
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  padding: "8px 12px",
-                  border: `1px solid ${BORDER}`,
-                  width: "50%",
-                }}
-              >
-                بيانات المرسل:
-              </td>
-              <td
-                colSpan={2}
-                style={{
-                  background: GREEN,
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 13,
-                  padding: "8px 12px",
-                  border: `1px solid ${BORDER}`,
-                  width: "50%",
-                }}
-              >
-                بيانات المرسل إليه:
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>الاسم:</td>
-              <td style={tdValueStyle}>{order.sender.name}</td>
-              <td style={tdLabelStyle}>الاسم:</td>
-              <td style={tdValueStyle}>{order.receiver.name}</td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>العنوان:</td>
-              <td style={tdValueStyle}>{order.sender.address}</td>
-              <td style={tdLabelStyle}>العنوان:</td>
-              <td style={tdValueStyle}>{order.receiver.address}</td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>المدينة:</td>
-              <td style={tdValueStyle}>
-                {order.sender.city || order.transport.fromCity}
-                {order.transport.fromCityEn
-                  ? ` / ${order.transport.fromCityEn}`
-                  : ""}
-              </td>
-              <td style={tdLabelStyle}>المدينة:</td>
-              <td style={tdValueStyle}>
-                {order.receiver.city || order.transport.toCity}
-                {order.transport.toCityEn
-                  ? ` / ${order.transport.toCityEn}`
-                  : ""}
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>رقم الهاتف:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.sender.phone}
-              </td>
-              <td style={tdLabelStyle}>رقم الهاتف:</td>
-              <td style={{ ...tdValueStyle, direction: "ltr", textAlign: "right" }}>
-                {order.receiver.mobile}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      {/* Receiver */}
+      <div style={sectionTitle}>Receiver Information / معلومات المستلم</div>
+      <div style={sectionBody}>
+        <Row3
+          a={{
+            label: "Receiver Name / الاسم",
+            value: order.receiver.name,
+            onChange: (v) => setNested("receiver", "name", v),
+          }}
+          b={{
+            label: "Receiver Address / العنوان",
+            value: order.receiver.address,
+            onChange: (v) => setNested("receiver", "address", v),
+          }}
+          c={{
+            label: "Receiver Mobile / الجوال",
+            value: order.receiver.mobile,
+            onChange: (v) => setNested("receiver", "mobile", v),
+            dir: "ltr",
+          }}
+        />
+      </div>
 
-        <SectionBar title="خط سير الرحلة:" />
-        <div
+      {/* Transport */}
+      <div style={sectionTitle}>Transportation Information / معلومات النقل</div>
+      <div style={sectionBody}>
+        <Row3
+          a={{
+            label: "From City / من",
+            value: order.transport.fromCity,
+            onChange: (v) => setNested("transport", "fromCity", v),
+          }}
+          b={{
+            label: "To City / إلى",
+            value: order.transport.toCity,
+            onChange: (v) => setNested("transport", "toCity", v),
+          }}
+          c={{
+            label: "Order No / رقم الطلب",
+            value: order.transport.orderNo,
+            onChange: (v) => setNested("transport", "orderNo", v),
+            dir: "ltr",
+          }}
+        />
+      </div>
+
+      {/* Driver */}
+      <div style={sectionTitle}>Driver Information / معلومات السائق</div>
+      <div style={sectionBody}>
+        <Row3
+          a={{
+            label: "Name / الاسم",
+            value: order.driver.name,
+            onChange: (v) => setNested("driver", "name", v),
+          }}
+          b={{
+            label: "Iqama Number / الإقامة",
+            value: order.driver.iqamaNumber,
+            onChange: (v) => setNested("driver", "iqamaNumber", v),
+            dir: "ltr",
+          }}
+          c={{
+            label: "Mobile / الجوال",
+            value: order.driver.mobile,
+            onChange: (v) => setNested("driver", "mobile", v),
+            dir: "ltr",
+          }}
+        />
+      </div>
+
+      {/* Goods table */}
+      <div style={sectionTitle}>Load Information / معلومات الحمولة</div>
+      <div style={{ ...sectionBody, padding: 0, overflow: "hidden" }}>
+        <table
           style={{
-            border: `1px solid ${BORDER}`,
-            borderTop: "none",
-            padding: "10px 12px",
-            marginBottom: 12,
-            lineHeight: 1.7,
-            fontSize: 12,
+            width: "100%",
+            borderCollapse: "collapse",
+            tableLayout: "fixed",
           }}
         >
-          {route}
-        </div>
-
-        <SectionBar title="بيانات البضاعة:" />
-        <table style={tableStyle}>
           <thead>
-            <tr>
-              {[
-                "وصف البضاعة",
-                "العدد",
-                "الوزن",
-                "وحدة الوزن",
-                "الأبعاد (متر)",
-                "وحدة التعبئة",
-                "الحالة",
-              ].map((h) => (
-                <th key={h} style={thStyle}>
-                  {h}
-                </th>
-              ))}
+            <tr style={{ background: "#EFF6FF" }}>
+              <th style={thCell}>Goods Type / نوع البضاعة</th>
+              <th style={thCell}>Quantity / الكمية</th>
+              <th style={thCell}>Weight / الوزن</th>
+              <th style={{ ...thCell, width: 44 }} className="no-print">
+                —
+              </th>
             </tr>
           </thead>
           <tbody>
-            {(order.items?.length ? order.items : [order.load]).map((item) => (
-              <tr key={item.id || `${item.type}-${item.quantity}`}>
-                <td style={{ ...tdValueStyle, textAlign: "center" }}>{item.type}</td>
-                <td style={{ ...tdValueStyle, textAlign: "center", direction: "ltr" }}>
-                  {item.quantity}
+            {items.map((item) => (
+              <tr key={item.id}>
+                <td style={tdCell}>
+                  <Field
+                    value={item.type}
+                    onChange={(v) => onUpdateItem(item.id, "type", v)}
+                  />
                 </td>
-                <td style={{ ...tdValueStyle, textAlign: "center", direction: "ltr" }}>
-                  {item.weight}
+                <td style={tdCell}>
+                  <Field
+                    value={item.quantity}
+                    onChange={(v) => onUpdateItem(item.id, "quantity", v)}
+                    dir="ltr"
+                  />
                 </td>
-                <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                  {item.weightUnit}
+                <td style={tdCell}>
+                  <Field
+                    value={`${item.weight}${item.weightUnit ? ` ${item.weightUnit}` : ""}`.trim()}
+                    onChange={(v) => {
+                      // keep simple: store full string in weight, clear unit or parse lightly
+                      const parts = v.trim().split(/\s+/);
+                      const weight = parts[0] || "";
+                      const weightUnit = parts.slice(1).join(" ") || item.weightUnit;
+                      onUpdateItem(item.id, "weight", weight);
+                      if (parts.length > 1) onUpdateItem(item.id, "weightUnit", weightUnit);
+                      else if (!v.includes(" ")) onUpdateItem(item.id, "weightUnit", "");
+                    }}
+                    dir="ltr"
+                  />
                 </td>
-                <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                  {item.dimensions || "—"}
-                </td>
-                <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                  {item.packingUnit || "—"}
-                </td>
-                <td style={{ ...tdValueStyle, textAlign: "center" }}>
-                  {item.condition}
+                <td style={tdCell} className="no-print">
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onRemoveItem(item.id)}
+                      style={{
+                        border: "none",
+                        background: "#FEE2E2",
+                        color: "#B91C1C",
+                        borderRadius: 6,
+                        padding: 6,
+                        cursor: "pointer",
+                        display: "flex",
+                        margin: "0 auto",
+                      }}
+                      aria-label="Remove item"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <table style={tableStyle}>
-          <tbody>
-            <tr>
-              <td
-                style={{
-                  background: GREEN,
-                  color: "#fff",
-                  fontWeight: 700,
-                  padding: "8px 12px",
-                  border: `1px solid ${BORDER}`,
-                  width: "50%",
-                }}
-              >
-                ملاحظات المرسل:
-              </td>
-              <td
-                style={{
-                  background: GREEN,
-                  color: "#fff",
-                  fontWeight: 700,
-                  padding: "8px 12px",
-                  border: `1px solid ${BORDER}`,
-                  width: "50%",
-                }}
-              >
-                ملاحظات المرسل إليه:
-              </td>
-            </tr>
-            <tr>
-              <td
-                style={{
-                  ...tdValueStyle,
-                  minHeight: 56,
-                  height: 56,
-                  verticalAlign: "top",
-                }}
-              >
-                {order.sender.notes || "—"}
-              </td>
-              <td
-                style={{
-                  ...tdValueStyle,
-                  minHeight: 56,
-                  height: 56,
-                  verticalAlign: "top",
-                }}
-              >
-                {order.receiver.notes || "—"}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <p
+        <button
+          type="button"
+          onClick={onAddItem}
+          className="no-print"
           style={{
-            textAlign: "center",
-            fontSize: 11,
-            color: "#4B5563",
-            margin: "16px 0 24px",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            padding: "10px",
+            border: "none",
+            borderTop: `1px dashed ${BORDER}`,
+            background: "#F8FAFC",
+            color: BLUE,
+            fontWeight: 700,
+            fontSize: 13,
+            cursor: "pointer",
+            fontFamily: "inherit",
           }}
         >
-          دون أدنى مسؤولية على محتويات الوثيقة
-        </p>
+          <Plus size={16} />
+          Add another item / إضافة صنف آخر
+        </button>
+      </div>
 
-        <div style={{ textAlign: "center", fontSize: 11, color: "#6B7280" }}>
-          الصفحة 2 من 2
-        </div>
-      </article>
+      <p
+        style={{
+          textAlign: "center",
+          fontSize: 11,
+          color: "#94A3B8",
+          marginTop: 8,
+        }}
+      >
+        {order.company.nameAr} — المملكة العربية السعودية
+      </p>
     </div>
   );
 }
 
-function SectionBar({ title }: { title: string }) {
+const thCell: CSSProperties = {
+  padding: "8px 6px",
+  fontSize: 11,
+  fontWeight: 700,
+  color: BLUE,
+  borderBottom: `1px solid ${BORDER}`,
+  textAlign: "center",
+};
+
+const tdCell: CSSProperties = {
+  padding: 6,
+  borderBottom: `1px solid #E2E8F0`,
+  verticalAlign: "middle",
+};
+
+function MiniCard({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div
       style={{
-        background: GREEN,
-        color: "#ffffff",
-        fontWeight: 700,
-        fontSize: 13,
-        padding: "8px 12px",
         border: `1px solid ${BORDER}`,
-        borderBottom: "none",
+        borderRadius: 8,
+        padding: 8,
+        background: "#F8FAFC",
       }}
     >
-      {title}
+      <div style={{ fontSize: 11, color: "#64748B", marginBottom: 4, fontWeight: 600 }}>
+        {label}
+      </div>
+      {children}
     </div>
   );
 }
 
-function Meta({ label, value }: { label: string; value: string }) {
+function Row3({
+  a,
+  b,
+  c,
+}: {
+  a: { label: string; value: string; onChange: (v: string) => void; dir?: string };
+  b: { label: string; value: string; onChange: (v: string) => void; dir?: string };
+  c: { label: string; value: string; onChange: (v: string) => void; dir?: string };
+}) {
   return (
-    <span style={{ display: "inline-block", lineHeight: 1.6 }}>
-      <span style={{ fontWeight: 700, marginLeft: 6 }}>{label}</span>
-      <span style={{ fontWeight: 700, direction: "ltr", unicodeBidi: "isolate" }}>
-        {value || "—"}
-      </span>
-    </span>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: 8,
+      }}
+    >
+      {[a, b, c].map((f) => (
+        <div key={f.label}>
+          <div
+            style={{
+              fontSize: 11,
+              color: "#64748B",
+              marginBottom: 4,
+              fontWeight: 600,
+            }}
+          >
+            {f.label}
+          </div>
+          <Field value={f.value} onChange={f.onChange} dir={f.dir} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Field({
+  value,
+  onChange,
+  dir,
+  style,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  dir?: string;
+  style?: CSSProperties;
+}) {
+  return (
+    <input
+      className="edit-field"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      dir={dir}
+      style={{ ...inputStyle, ...style }}
+    />
   );
 }
