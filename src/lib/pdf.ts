@@ -5,7 +5,8 @@ const PAGE_WIDTH_PX = 794;
 
 /**
  * Fast single-page PDF capture.
- * Converts editable inputs to plain text and hides UI-only controls.
+ * Forces desktop layout (logo | info | QR) on any screen.
+ * Syncs live input values so all goods items appear.
  */
 export async function downloadElementAsPdf(
   element: HTMLElement,
@@ -24,6 +25,11 @@ export async function downloadElementAsPdf(
   try {
     if (document.fonts?.ready) await document.fonts.ready;
 
+    // Snapshot live values BEFORE clone (React sets .value property, not attribute)
+    const liveValues = Array.from(
+      page.querySelectorAll<HTMLInputElement>("input.edit-field")
+    ).map((input) => input.value);
+
     const clone = page.cloneNode(true) as HTMLElement;
     clone.style.cssText = [
       "width:794px",
@@ -34,28 +40,82 @@ export async function downloadElementAsPdf(
       "background:#ffffff",
       "box-shadow:none",
       "margin:0",
+      "padding:20px",
       "box-sizing:border-box",
       "font-family:Cairo,Tahoma,Arial,sans-serif",
       "direction:rtl",
     ].join(";");
+
+    // Force website desktop layout in PDF (ignore phone viewport)
+    const forceCss = document.createElement("style");
+    forceCss.textContent = `
+      .pdf-header {
+        display: grid !important;
+        grid-template-columns: 140px 1fr 140px !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+      }
+      .pdf-logo, .pdf-qr {
+        width: 140px !important;
+        height: 140px !important;
+        min-height: 140px !important;
+        margin: 0 !important;
+      }
+      .pdf-logo img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+      }
+      .pdf-qr img {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 130px !important;
+        max-height: 130px !important;
+        object-fit: contain !important;
+      }
+      .pdf-dates {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 1fr !important;
+        gap: 8px !important;
+      }
+      .pdf-field-row {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr 1fr !important;
+        gap: 8px !important;
+      }
+      .pdf-goods-mobile { display: none !important; }
+      .pdf-goods-desktop { display: block !important; visibility: visible !important; }
+      .no-print { display: none !important; }
+    `;
+    clone.prepend(forceCss);
+
+    // Apply live values onto cloned inputs
+    const clonedInputs = Array.from(
+      clone.querySelectorAll<HTMLInputElement>("input.edit-field")
+    );
+    clonedInputs.forEach((input, i) => {
+      if (liveValues[i] !== undefined) input.value = liveValues[i];
+    });
 
     // Hide edit-only controls
     clone.querySelectorAll(".no-print").forEach((el) => {
       (el as HTMLElement).style.display = "none";
     });
 
-    // Replace inputs with static text (faster + cleaner PDF)
-    clone.querySelectorAll("input.edit-field").forEach((node) => {
-      const input = node as HTMLInputElement;
+    // Replace inputs with static text
+    clonedInputs.forEach((input) => {
       const span = document.createElement("div");
       span.textContent = input.value || "—";
       span.style.cssText = [
         "font-weight:700",
         "font-size:13px",
         "color:#0f172a",
-        "padding:4px 2px",
-        "min-height:22px",
+        "padding:6px 4px",
+        "min-height:24px",
         "word-break:break-word",
+        "border:1px solid #e2e8f0",
+        "border-radius:6px",
+        "background:#f8fafc",
         input.dir === "ltr" ? "direction:ltr;text-align:right" : "",
       ].join(";");
       input.replaceWith(span);
@@ -68,15 +128,15 @@ export async function downloadElementAsPdf(
       imgs.map(
         (img) =>
           new Promise<void>((resolve) => {
-            if (img.complete) return resolve();
+            if (img.complete && img.naturalWidth > 0) return resolve();
             img.onload = () => resolve();
             img.onerror = () => resolve();
-            setTimeout(() => resolve(), 800);
+            setTimeout(() => resolve(), 1000);
           })
       )
     );
 
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    await new Promise((r) => setTimeout(r, 80));
 
     const canvas = await html2canvas(clone, {
       scale: 1.5,

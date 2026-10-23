@@ -46,58 +46,63 @@ export default function DeliveryOrderTemplate({
       dir="rtl"
       data-editable-form="true"
     >
-      {/* Header */}
-      <div className="mb-4 flex flex-col gap-3 border-b-2 border-[#204978] pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-1 items-start gap-3">
+      {/* Header: logo + 3 company rows + QR — logo & QR same size */}
+      <div className="pdf-header mb-4 grid grid-cols-1 gap-3 border-b-2 border-[#204978] pb-3 sm:grid-cols-[140px_1fr_140px] sm:items-stretch sm:gap-3">
+        {/* Logo — same size as QR */}
+        <div className="pdf-logo mx-auto flex h-[140px] w-[140px] shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white sm:mx-0 sm:h-auto sm:w-full sm:min-h-[140px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={order.company.logoDataUrl || "/wasl-logo.jpg"}
             alt="logo"
-            width={64}
-            height={64}
-            className="h-14 w-14 shrink-0 rounded-xl border border-slate-200 object-cover sm:h-16 sm:w-16"
+            width={140}
+            height={140}
+            className="h-full w-full object-cover"
             crossOrigin="anonymous"
           />
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <Field
-              value={order.company.nameAr}
-              onChange={(v) => setNested("company", "nameAr", v)}
-              className="font-extrabold text-[#204978] text-base"
-            />
-            <Field
-              value={order.company.addressAr}
-              onChange={(v) => setNested("company", "addressAr", v)}
-              className="text-xs"
-            />
-            <Field
-              value={order.company.phone}
-              onChange={(v) => setNested("company", "phone", v)}
-              dir="ltr"
-              className="text-xs"
-            />
-          </div>
         </div>
+
+        {/* 3 rows: name / address / phone — same total height as logo & QR */}
+        <div className="flex min-w-0 flex-col justify-between gap-2">
+          <Field
+            value={order.company.nameAr}
+            onChange={(v) => setNested("company", "nameAr", v)}
+            className="h-full min-h-[40px] font-extrabold text-base text-[#204978]"
+          />
+          <Field
+            value={order.company.addressAr}
+            onChange={(v) => setNested("company", "addressAr", v)}
+            className="h-full min-h-[40px] text-sm"
+          />
+          <Field
+            value={order.company.phone}
+            onChange={(v) => setNested("company", "phone", v)}
+            dir="ltr"
+            className="h-full min-h-[40px] text-sm"
+          />
+        </div>
+
+        {/* QR — same size as logo */}
         <div
           data-role="qr-code"
-          className="mx-auto flex h-[100px] w-[100px] shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white sm:mx-0"
+          className="pdf-qr mx-auto flex h-[140px] w-[140px] shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white p-1.5 sm:mx-0 sm:h-auto sm:w-full sm:min-h-[140px]"
         >
           {qrCodeUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={qrCodeUrl}
               alt="QR"
-              width={92}
-              height={92}
-              className="h-[92px] w-[92px] object-contain"
+              width={130}
+              height={130}
+              className="h-full w-full max-h-[130px] max-w-[130px] object-contain"
             />
           ) : (
-            <span className="text-[10px] text-slate-400">QR</span>
+            <span className="text-xs text-slate-400">QR</span>
           )}
         </div>
       </div>
 
       {/* Dates — 1 col mobile, 3 col desktop */}
-      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="pdf-dates mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <MiniCard label="Invoice Number / رقم الطلب">
           <Field
             value={order.invoiceNumber}
@@ -222,11 +227,11 @@ export default function DeliveryOrderTemplate({
         Load Information / معلومات الحمولة
       </div>
       <div className="mb-3 overflow-hidden rounded-b-lg border border-t-0 border-blue-200 bg-white">
-        {/* Mobile: stacked cards */}
-        <div className="space-y-3 p-3 sm:hidden">
+        {/* Mobile: stacked cards (hidden in PDF) */}
+        <div className="pdf-goods-mobile space-y-3 p-3 sm:hidden">
           {items.map((item, index) => (
             <div
-              key={item.id}
+              key={`m-${item.id}`}
               className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3"
             >
               <div className="flex items-center justify-between">
@@ -273,8 +278,8 @@ export default function DeliveryOrderTemplate({
           ))}
         </div>
 
-        {/* Desktop: table */}
-        <div className="hidden sm:block">
+        {/* Desktop + PDF: table with ALL items */}
+        <div className="pdf-goods-desktop hidden sm:block">
           <table className="w-full table-fixed border-collapse">
             <thead>
               <tr className="bg-blue-50">
@@ -294,7 +299,7 @@ export default function DeliveryOrderTemplate({
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id}>
+                <tr key={`d-${item.id}`}>
                   <td className="border-b border-slate-200 p-1.5">
                     <Field
                       value={item.type}
@@ -395,7 +400,7 @@ function FieldRow({
   }>;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-2">
+    <div className="pdf-field-row grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-2">
       {fields.map((f) => (
         <LabeledField
           key={f.label}
