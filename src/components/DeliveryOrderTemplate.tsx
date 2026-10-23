@@ -9,7 +9,7 @@ type Props = {
   onChange: (next: DeliveryOrder) => void;
   onAddItem: () => void;
   onRemoveItem: (id: string) => void;
-  onUpdateItem: (id: string, key: keyof GoodsItem, value: string) => void;
+  onUpdateItem: (id: string, patch: Partial<GoodsItem>) => void;
 };
 
 const BLUE = "#204978";
@@ -252,26 +252,18 @@ export default function DeliveryOrderTemplate({
               <LabeledField
                 label="Goods Type / نوع البضاعة"
                 value={item.type}
-                onChange={(v) => onUpdateItem(item.id, "type", v)}
+                onChange={(v) => onUpdateItem(item.id, { type: v })}
               />
               <LabeledField
                 label="Quantity / الكمية"
                 value={item.quantity}
-                onChange={(v) => onUpdateItem(item.id, "quantity", v)}
+                onChange={(v) => onUpdateItem(item.id, { quantity: v })}
                 dir="ltr"
               />
               <LabeledField
                 label="Weight / الوزن"
-                value={`${item.weight}${item.weightUnit ? ` ${item.weightUnit}` : ""}`.trim()}
-                onChange={(v) => {
-                  const parts = v.trim().split(/\s+/);
-                  onUpdateItem(item.id, "weight", parts[0] || "");
-                  if (parts.length > 1) {
-                    onUpdateItem(item.id, "weightUnit", parts.slice(1).join(" "));
-                  } else if (!v.includes(" ")) {
-                    onUpdateItem(item.id, "weightUnit", "");
-                  }
-                }}
+                value={item.weight}
+                onChange={(v) => onUpdateItem(item.id, { weight: v, weightUnit: "" })}
                 dir="ltr"
               />
             </div>
@@ -303,32 +295,22 @@ export default function DeliveryOrderTemplate({
                   <td className="border-b border-slate-200 p-1.5">
                     <Field
                       value={item.type}
-                      onChange={(v) => onUpdateItem(item.id, "type", v)}
+                      onChange={(v) => onUpdateItem(item.id, { type: v })}
                     />
                   </td>
                   <td className="border-b border-slate-200 p-1.5">
                     <Field
                       value={item.quantity}
-                      onChange={(v) => onUpdateItem(item.id, "quantity", v)}
+                      onChange={(v) => onUpdateItem(item.id, { quantity: v })}
                       dir="ltr"
                     />
                   </td>
                   <td className="border-b border-slate-200 p-1.5">
                     <Field
-                      value={`${item.weight}${item.weightUnit ? ` ${item.weightUnit}` : ""}`.trim()}
-                      onChange={(v) => {
-                        const parts = v.trim().split(/\s+/);
-                        onUpdateItem(item.id, "weight", parts[0] || "");
-                        if (parts.length > 1) {
-                          onUpdateItem(
-                            item.id,
-                            "weightUnit",
-                            parts.slice(1).join(" ")
-                          );
-                        } else if (!v.includes(" ")) {
-                          onUpdateItem(item.id, "weightUnit", "");
-                        }
-                      }}
+                      value={item.weight}
+                      onChange={(v) =>
+                        onUpdateItem(item.id, { weight: v, weightUnit: "" })
+                      }
                       dir="ltr"
                     />
                   </td>

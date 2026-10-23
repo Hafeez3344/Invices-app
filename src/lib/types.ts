@@ -105,8 +105,8 @@ export function createEmptyGoodsItem(): GoodsItem {
         ? crypto.randomUUID()
         : `item_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     type: "بضائع عامة",
-    weight: "1.000",
-    weightUnit: "طن",
+    weight: "1.000 طن",
+    weightUnit: "",
     quantity: "1",
     dimensions: "",
     packingUnit: "",

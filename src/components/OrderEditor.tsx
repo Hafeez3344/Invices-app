@@ -98,10 +98,10 @@ export default function OrderEditor() {
     sessionStorage.setItem("currentOrder", JSON.stringify(next));
   }
 
-  function updateItem(itemId: string, key: keyof GoodsItem, value: string) {
+  function updateItem(itemId: string, patch: Partial<GoodsItem>) {
     if (!order) return;
     const items = order.items.map((item) =>
-      item.id === itemId ? { ...item, [key]: value } : item
+      item.id === itemId ? { ...item, ...patch } : item
     );
     updateOrder({
       ...order,
@@ -183,6 +183,15 @@ export default function OrderEditor() {
         body: JSON.stringify(withMeta),
       });
       await addInvoiceToHistory(withMeta);
+      // So QR /track page can show full invoice details
+      try {
+        localStorage.setItem(
+          `public_invoice_${withMeta.id}`,
+          JSON.stringify(withMeta)
+        );
+      } catch {
+        /* ignore quota */
+      }
       updateOrder(withMeta);
 
       setAlert({
