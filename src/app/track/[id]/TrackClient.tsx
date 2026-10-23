@@ -81,6 +81,15 @@ export default function TrackClient({ id }: { id: string }) {
 
   return (
     <div className="min-h-screen bg-gray-100 font-cairo py-6 px-3" dir="rtl">
+      <div className="mx-auto mb-4 w-full max-w-[794px] text-center">
+        <h1 className="text-2xl font-extrabold text-[#204978] sm:text-3xl">
+          Invoice Details / تفاصيل الفاتورة
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Delivery order information
+        </p>
+      </div>
+
       <div className="mx-auto w-full max-w-[794px] rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
         {/* Header */}
         <div className="mb-4 grid grid-cols-[100px_1fr_100px] items-stretch gap-3 border-b-2 border-[#204978] pb-3">
