@@ -1,6 +1,24 @@
 export type UserRole = "admin" | "user";
 
-export type InvoiceStatus = "In Transit" | "Delivered" | "Cancelled" | null;
+export type InvoiceStatus =
+  | "In Transit"
+  | "Sent"
+  | "Delivered"
+  | "Failed"
+  | "Cancelled"
+  | null;
+
+/** Invoices older than this are removed from DB / local storage */
+export const INVOICE_TTL_DAYS = 5;
+export const INVOICE_TTL_MS = INVOICE_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+export const INVOICE_STATUSES: Exclude<InvoiceStatus, null>[] = [
+  "In Transit",
+  "Sent",
+  "Delivered",
+  "Failed",
+  "Cancelled",
+];
 
 export interface AppUser {
   id: string;
@@ -125,10 +143,21 @@ export function statusLabelAr(status?: InvoiceStatus): string {
   switch (status) {
     case "Delivered":
       return "تم التسليم";
+    case "Sent":
+      return "تم الإرسال";
+    case "Failed":
+      return "فشل";
     case "Cancelled":
       return "ملغاة";
     case "In Transit":
     default:
-      return "نشطة";
+      return "قيد النقل";
   }
+}
+
+export function isInvoiceExpired(createdAt: string | undefined | null): boolean {
+  if (!createdAt) return false;
+  const t = new Date(createdAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t > INVOICE_TTL_MS;
 }

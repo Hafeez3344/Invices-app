@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
+import { dbGetUserById, dbGetUserByUsername } from "./serverDb";
 import type { SessionUser, UserRole } from "./types";
 
 const JWT_SECRET = () =>
@@ -48,28 +49,22 @@ export async function requireAuth(req: Request): Promise<SessionUser | null> {
   const user = await verifyToken(token);
   if (!user) return null;
 
-  // Enrich full_name from DB when possible (keep JWT user if not in DB — env admin)
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { data } = await supabase
-        .from("app_users")
-        .select("id, username, full_name, role, is_active")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (data) {
-        if (!data.is_active) return null;
-        return {
-          id: data.id,
-          username: data.username,
-          full_name: data.full_name || data.username,
-          role: data.role as UserRole,
-        };
-      }
-    } catch {
-      // fall through to JWT user
+  // Enrich user from serverDb (which checks Supabase first if configured, else local DB)
+  try {
+    const dbUser = await dbGetUserById(user.id);
+    if (dbUser) {
+      if (!dbUser.is_active) return null;
+      return {
+        id: dbUser.id,
+        username: dbUser.username,
+        full_name: dbUser.full_name || dbUser.username,
+        role: dbUser.role,
+      };
     }
+  } catch {
+    // fall through
   }
+
   return user;
 }
 
@@ -90,43 +85,35 @@ export async function loginWithCredentials(
   const u = username.trim();
   const p = password;
 
-  // Prefer Supabase users table
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = getSupabase()!;
-      const { data, error } = await supabase
-        .from("app_users")
-        .select("id, username, full_name, role, is_active, password_hash")
-        .eq("username", u)
-        .maybeSingle();
-
-      if (!error && data) {
-        if (!data.is_active) {
-          return { success: false, error: "User is inactive" };
-        }
-        const ok = await bcrypt.compare(p, data.password_hash);
-        if (!ok) return { success: false, error: "Invalid credentials" };
-
+  // 1. Check serverDb (checks Supabase if configured, and checks persistent local store)
+  try {
+    const dbUser = await dbGetUserByUsername(u);
+    if (dbUser) {
+      if (!dbUser.is_active) {
+        return { success: false, error: "المستخدم غير نشط / User is inactive" };
+      }
+      const ok = await bcrypt.compare(p, dbUser.password_hash);
+      if (ok) {
         const user: SessionUser = {
-          id: data.id,
-          username: data.username,
-          full_name: data.full_name || data.username,
-          role: data.role as UserRole,
+          id: dbUser.id,
+          username: dbUser.username,
+          full_name: dbUser.full_name || dbUser.username,
+          role: dbUser.role,
         };
         const token = await signToken(user);
         return { success: true, token, user };
       }
-    } catch (e) {
-      console.error("Supabase login failed, falling back to env auth:", e);
     }
+  } catch (e) {
+    console.error("Database login failed, falling back to env:", e);
   }
 
-  // Env / seed fallback (same pattern as reference)
+  // 2. Env / seed admin fallback
   const envUser = process.env.ADMIN_USERNAME || "admin";
   const envPass = process.env.ADMIN_PASSWORD || "admin123";
   const envName = process.env.ADMIN_FULL_NAME || "مسؤول النظام";
 
-  if (u === envUser && p === envPass) {
+  if (u.toLowerCase() === envUser.toLowerCase() && p === envPass) {
     const user: SessionUser = {
       id: "00000000-0000-0000-0000-000000000001",
       username: envUser,
@@ -137,7 +124,7 @@ export async function loginWithCredentials(
     return { success: true, token, user };
   }
 
-  return { success: false, error: "Invalid credentials" };
+  return { success: false, error: "اسم المستخدم أو كلمة المرور غير صحيحة / Invalid credentials" };
 }
 
 export async function hashPassword(password: string): Promise<string> {

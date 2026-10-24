@@ -14,10 +14,11 @@ import AppHeader from "@/components/AppHeader";
 import AlertModal from "@/components/AlertModal";
 import ConfirmModal from "@/components/ConfirmModal";
 import { authHeaders, getSessionUser, isLoggedIn } from "@/lib/session";
-import { getRecentInvoices } from "@/lib/idb";
+import { getRecentInvoices, updateInvoiceStatusLocal } from "@/lib/idb";
 import type { AlertState, AppUser, DeliveryOrder, InvoiceStatus } from "@/lib/types";
+import { INVOICE_STATUSES, statusLabelAr } from "@/lib/types";
 
-const STATUSES: InvoiceStatus[] = ["In Transit", "Delivered", "Cancelled"];
+const STATUSES = INVOICE_STATUSES;
 
 export default function DashboardClient() {
   const router = useRouter();
@@ -56,6 +57,26 @@ export default function DashboardClient() {
   }, [router]);
 
   async function loadHistory() {
+    try {
+      const res = await fetch("/api/invoices", { headers: authHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.invoices && Array.isArray(data.invoices)) {
+          const list: DeliveryOrder[] = data.invoices.map((inv: any) => ({
+            ...(inv.payload || {}),
+            id: inv.id,
+            invoiceNumber: inv.invoice_number || inv.payload?.invoiceNumber,
+            status: inv.status,
+            createdAt: inv.created_at || inv.payload?.createdAt,
+            updatedAt: inv.updated_at || inv.payload?.updatedAt,
+          }));
+          setHistory(list);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load invoices from API, falling back to local IDB:", e);
+    }
     const items = await getRecentInvoices();
     setHistory(items);
   }
@@ -74,37 +95,52 @@ export default function DashboardClient() {
   async function updateStatus() {
     if (!statusTarget) return;
     try {
+      await updateInvoiceStatusLocal(statusTarget.id, statusValue);
+
       const res = await fetch(`/api/invoices/${statusTarget.id}`, {
         method: "PATCH",
         headers: authHeaders(),
         body: JSON.stringify({ status: statusValue }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
+        if (res.status === 410) {
+          setAlert({
+            isOpen: true,
+            title: "انتهت الصلاحية / Expired",
+            message:
+              data.error ||
+              "انتهت صلاحية الفاتورة (تحفظ لمدة 5 أيام فقط) / This invoice is older than 5 days and was removed.",
+            type: "warning",
+          });
+          setStatusTarget(null);
+          loadHistory();
+          return;
+        }
         setAlert({
           isOpen: true,
-          title: "Failed",
-          message:
-            data.error ||
-            "Failed to update status in database. Please check your connection.",
+          title: "فشل / Failed",
+          message: data.error || "فشل تحديث الحالة / Failed to update status",
           type: "error",
         });
         return;
       }
+
       setAlert({
         isOpen: true,
-        title: "Success",
-        message: "Successfully updated status in Supabase",
+        title: "تم بنجاح / Success",
+        message: `تم تحديث حالة الفاتورة إلى "${statusLabelAr(statusValue)}" بنجاح / Status updated to "${statusValue}".`,
         type: "success",
       });
       setStatusTarget(null);
       loadHistory();
     } catch (e) {
-      console.error("Failed to update Supabase status:", e);
+      console.error("Failed to update status:", e);
       setAlert({
         isOpen: true,
-        title: "Failed",
-        message: "Failed to update status in database.",
+        title: "خطأ / Error",
+        message: "حدث خطأ أثناء تحديث الحالة: " + String(e),
         type: "error",
       });
     }
@@ -252,7 +288,7 @@ export default function DashboardClient() {
               </button>
             </div>
             <p className="mb-4 text-sm text-slate-500">
-              Recent 5 Downloaded Invoices
+              Recent downloaded invoices (kept 5 days, then auto-removed)
             </p>
 
             {history.length === 0 ? (
@@ -277,7 +313,7 @@ export default function DashboardClient() {
                         </p>
                         {inv.status && (
                           <span className="mt-1 inline-block rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                            {inv.status}
+                            {inv.status} / {statusLabelAr(inv.status)}
                           </span>
                         )}
                       </div>
@@ -424,8 +460,8 @@ export default function DashboardClient() {
               className="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2"
             >
               {STATUSES.map((s) => (
-                <option key={s!} value={s!}>
-                  {s}
+                <option key={s} value={s}>
+                  {s} — {statusLabelAr(s)}
                 </option>
               ))}
             </select>

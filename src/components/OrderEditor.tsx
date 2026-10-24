@@ -56,6 +56,13 @@ export default function OrderEditor() {
       setOrder(parsed);
       setQrCodeUrl(parsed.qrCodeUrl || "");
       sessionStorage.setItem("currentOrder", JSON.stringify(parsed));
+
+      // Persist to server database immediately so QR scan works right away
+      fetch("/api/invoices", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(parsed),
+      }).catch((e) => console.error("Initial invoice server save error:", e));
     } catch {
       router.replace("/order/new");
     }
@@ -83,6 +90,17 @@ export default function OrderEditor() {
         const data = await res.json();
         if (!cancelled && res.ok && data.qrCodeUrl) {
           setQrCodeUrl(data.qrCodeUrl);
+          // If server resolved customerUrl with LAN IP, keep it updated
+          if (data.scannedUrl && order && (!order.qrCodeUrl || order.qrCodeUrl !== data.qrCodeUrl)) {
+            const updated = { ...order, qrCodeUrl: data.qrCodeUrl };
+            setOrder(updated);
+            sessionStorage.setItem("currentOrder", JSON.stringify(updated));
+            fetch("/api/invoices", {
+              method: "POST",
+              headers: authHeaders(),
+              body: JSON.stringify(updated),
+            }).catch(() => {});
+          }
         }
       } catch {
         /* ignore */
@@ -96,6 +114,13 @@ export default function OrderEditor() {
   function updateOrder(next: DeliveryOrder) {
     setOrder(next);
     sessionStorage.setItem("currentOrder", JSON.stringify(next));
+
+    // Keep server database in sync
+    fetch("/api/invoices", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(next),
+    }).catch(() => {});
   }
 
   function updateItem(itemId: string, patch: Partial<GoodsItem>) {

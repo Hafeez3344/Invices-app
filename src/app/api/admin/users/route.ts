@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { hashPassword, requireAdmin } from "@/lib/auth";
-import { getSupabase } from "@/lib/supabase";
+import { dbGetUsers, dbCreateUser } from "@/lib/serverDb";
 
 export async function GET(req: Request) {
   const admin = await requireAdmin(req);
@@ -8,38 +8,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = getSupabase();
-  if (!supabase) {
-    return NextResponse.json({
-      users: [],
-      message: "Supabase not configured",
-    });
+  try {
+    const users = await dbGetUsers();
+    return NextResponse.json({ users });
+  } catch (error) {
+    console.error("GET /api/admin/users error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch users" },
+      { status: 500 }
+    );
   }
-
-  const { data, error } = await supabase
-    .from("app_users")
-    .select("id, username, full_name, role, is_active, created_at, updated_at")
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ users: data || [] });
 }
 
 export async function POST(req: Request) {
   const admin = await requireAdmin(req);
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const supabase = getSupabase();
-  if (!supabase) {
-    return NextResponse.json(
-      { error: "Supabase not configured" },
-      { status: 503 }
-    );
   }
 
   const body = await req.json();
@@ -51,27 +35,31 @@ export async function POST(req: Request) {
 
   if (!username || !password || !full_name) {
     return NextResponse.json(
-      { error: "full_name, username and password are required" },
+      { error: "الاسم الكامل، اسم المستخدم وكلمة المرور مطلوبة / full_name, username and password are required" },
       { status: 400 }
     );
   }
 
-  const password_hash = await hashPassword(password);
-  const { data, error } = await supabase
-    .from("app_users")
-    .insert({
+  try {
+    const password_hash = await hashPassword(password);
+    const result = await dbCreateUser({
       username,
       full_name,
       role,
       is_active,
       password_hash,
-    })
-    .select("id, username, full_name, role, is_active, created_at, updated_at")
-    .single();
+    });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, user: result.user });
+  } catch (error) {
+    console.error("POST /api/admin/users error:", error);
+    return NextResponse.json(
+      { error: "Failed to create user" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true, user: data });
 }

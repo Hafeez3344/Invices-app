@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hashPassword, requireAdmin } from "@/lib/auth";
-import { getSupabase } from "@/lib/supabase";
+import { dbUpdateUser, dbDeleteUser } from "@/lib/serverDb";
+import type { UserRole } from "@/lib/types";
 
 export async function PUT(
   req: Request,
@@ -11,37 +12,36 @@ export async function PUT(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = getSupabase();
-  if (!supabase) {
+  try {
+    const body = await req.json();
+    const updates: {
+      full_name?: string;
+      role?: UserRole;
+      is_active?: boolean;
+      password_hash?: string;
+    } = {};
+
+    if (body.full_name !== undefined) updates.full_name = String(body.full_name);
+    if (body.role !== undefined)
+      updates.role = body.role === "admin" ? "admin" : "user";
+    if (body.is_active !== undefined) updates.is_active = Boolean(body.is_active);
+    if (body.password) {
+      updates.password_hash = await hashPassword(String(body.password));
+    }
+
+    const result = await dbUpdateUser(params.id, updates);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true, user: result.user });
+  } catch (error) {
+    console.error("PUT /api/admin/users/[id] error:", error);
     return NextResponse.json(
-      { error: "Supabase not configured" },
-      { status: 503 }
+      { error: "Failed to update user" },
+      { status: 500 }
     );
   }
-
-  const body = await req.json();
-  const updates: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (body.full_name !== undefined) updates.full_name = String(body.full_name);
-  if (body.role !== undefined)
-    updates.role = body.role === "admin" ? "admin" : "user";
-  if (body.is_active !== undefined) updates.is_active = Boolean(body.is_active);
-  if (body.password) updates.password_hash = await hashPassword(String(body.password));
-
-  const { data, error } = await supabase
-    .from("app_users")
-    .update(updates)
-    .eq("id", params.id)
-    .select("id, username, full_name, role, is_active, created_at, updated_at")
-    .single();
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, user: data });
 }
 
 export async function DELETE(
@@ -53,18 +53,18 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = getSupabase();
-  if (!supabase) {
+  try {
+    const result = await dbDeleteUser(params.id);
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/admin/users/[id] error:", error);
     return NextResponse.json(
-      { error: "Supabase not configured" },
-      { status: 503 }
+      { error: "Failed to delete user" },
+      { status: 500 }
     );
   }
-
-  const { error } = await supabase.from("app_users").delete().eq("id", params.id);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
 }

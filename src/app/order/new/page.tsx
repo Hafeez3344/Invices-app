@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DEFAULT_ORDER_TEMPLATE } from "@/lib/defaults";
 import { getRecentInvoices } from "@/lib/idb";
-import { isLoggedIn } from "@/lib/session";
+import { isLoggedIn, authHeaders } from "@/lib/session";
 import type { DeliveryOrder } from "@/lib/types";
 
 function formatDate(d: Date) {
@@ -33,13 +33,28 @@ export default function NewOrderPage() {
 
       let invoiceNumber = DEFAULT_ORDER_TEMPLATE.invoiceNumber;
       try {
-        const recent = await getRecentInvoices();
-        if (recent.length > 0) {
-          const max = recent.reduce((acc, cur) => {
+        let allInvoices: DeliveryOrder[] = [];
+        const res = await fetch("/api/invoices", {
+          headers: authHeaders(),
+        }).catch(() => null);
+
+        if (res && res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.invoices && Array.isArray(data.invoices)) {
+            allInvoices = data.invoices.map((i: any) => i.payload || i);
+          }
+        }
+
+        if (allInvoices.length === 0) {
+          allInvoices = await getRecentInvoices();
+        }
+
+        if (allInvoices.length > 0) {
+          const max = allInvoices.reduce((acc, cur) => {
             const a = parseInt(cur.invoiceNumber, 10) || 0;
             const b = parseInt(acc.invoiceNumber, 10) || 0;
             return a > b ? cur : acc;
-          }, recent[0]);
+          }, allInvoices[0]);
           invoiceNumber = (
             (parseInt(max.invoiceNumber, 10) || 0) + 1
           )

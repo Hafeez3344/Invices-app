@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { getSupabase } from "@/lib/supabase";
+import { dbListInvoices, dbSaveInvoice } from "@/lib/serverDb";
+import { purgeExpiredSupabaseInvoices } from "@/lib/invoiceCleanup";
+
+export async function GET(req: Request) {
+  const user = await requireAuth(req);
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    await purgeExpiredSupabaseInvoices();
+    const invoices = await dbListInvoices(100);
+    return NextResponse.json({ success: true, invoices });
+  } catch (error) {
+    console.error("GET /api/invoices error:", error);
+    return NextResponse.json(
+      { error: "Failed to list invoices" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(req: Request) {
   const user = await requireAuth(req);
@@ -8,36 +28,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = getSupabase();
-  const body = await req.json();
+  try {
+    await purgeExpiredSupabaseInvoices();
+    const body = await req.json();
 
-  if (!supabase) {
+    if (!body || !body.id) {
+      return NextResponse.json(
+        { error: "Invoice data and id are required" },
+        { status: 400 }
+      );
+    }
+
+    const result = await dbSaveInvoice(body, user.id);
     return NextResponse.json({
       success: true,
-      message: "Saved locally only (Supabase not configured)",
-      invoice: body,
+      invoice: result.invoice,
+      message: "Invoice saved successfully",
     });
+  } catch (error) {
+    console.error("POST /api/invoices error:", error);
+    return NextResponse.json(
+      { error: "Failed to save invoice" },
+      { status: 500 }
+    );
   }
-
-  const payload = {
-    id: body.id,
-    invoice_number: body.invoiceNumber,
-    status: body.status || "In Transit",
-    payload: body,
-    created_by: user.id.startsWith("00000000") ? null : user.id,
-    updated_at: new Date().toISOString(),
-  };
-
-  const { data, error } = await supabase
-    .from("invoices")
-    .upsert(payload, { onConflict: "id" })
-    .select("id, invoice_number, status")
-    .single();
-
-  if (error) {
-    console.error("Failed to save invoice:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true, invoice: data });
 }

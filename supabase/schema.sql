@@ -18,12 +18,21 @@ create table if not exists public.app_users (
 create table if not exists public.invoices (
   id text primary key,
   invoice_number text,
+  -- Allowed: In Transit | Sent | Delivered | Failed | Cancelled
   status text default 'In Transit',
   payload jsonb,
   created_by uuid references public.app_users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Optional: auto-delete invoices older than 5 days (run once in SQL editor)
+-- create extension if not exists pg_cron;
+-- select cron.schedule(
+--   'purge-old-invoices',
+--   '0 * * * *',
+--   $$delete from public.invoices where created_at < now() - interval '5 days'$$
+-- );
 
 -- Seed admin (password: admin123)
 insert into public.app_users (username, full_name, role, is_active, password_hash, is_seed)
