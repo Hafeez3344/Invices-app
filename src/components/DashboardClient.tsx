@@ -62,14 +62,22 @@ export default function DashboardClient() {
       if (res.ok) {
         const data = await res.json();
         if (data.invoices && Array.isArray(data.invoices)) {
-          const list: DeliveryOrder[] = data.invoices.map((inv: any) => ({
+          type RawInvoiceRecord = {
+            id: string;
+            invoice_number?: string;
+            status: InvoiceStatus;
+            created_at?: string;
+            updated_at?: string;
+            payload?: Partial<DeliveryOrder>;
+          };
+          const list: DeliveryOrder[] = (data.invoices as RawInvoiceRecord[]).map((inv) => ({
             ...(inv.payload || {}),
             id: inv.id,
-            invoiceNumber: inv.invoice_number || inv.payload?.invoiceNumber,
+            invoiceNumber: inv.invoice_number || inv.payload?.invoiceNumber || "",
             status: inv.status,
             createdAt: inv.created_at || inv.payload?.createdAt,
             updatedAt: inv.updated_at || inv.payload?.updatedAt,
-          }));
+          } as DeliveryOrder));
           setHistory(list);
           return;
         }

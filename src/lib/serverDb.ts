@@ -113,6 +113,19 @@ export function purgeLocalExpiredInvoices(): void {
 
 // ================= USER OPERATIONS =================
 
+function stripPassword(user: ServerUser): Omit<ServerUser, "password_hash"> {
+  return {
+    id: user.id,
+    username: user.username,
+    full_name: user.full_name,
+    role: user.role,
+    is_active: user.is_active,
+    ...(user.is_seed !== undefined ? { is_seed: user.is_seed } : {}),
+    created_at: user.created_at,
+    updated_at: user.updated_at,
+  };
+}
+
 export async function dbGetUsers(): Promise<Array<Omit<ServerUser, "password_hash">>> {
   // If Supabase is configured, try Supabase first
   if (isSupabaseConfigured()) {
@@ -133,7 +146,7 @@ export async function dbGetUsers(): Promise<Array<Omit<ServerUser, "password_has
 
   // Fallback to local server database
   const db = ensureDbFile();
-  return db.users.map(({ password_hash: _ph, ...safeUser }) => safeUser);
+  return db.users.map(stripPassword);
 }
 
 export async function dbGetUserById(id: string): Promise<ServerUser | null> {
@@ -223,8 +236,7 @@ export async function dbCreateUser(params: {
     }
   }
 
-  const { password_hash: _ph, ...safeUser } = newUser;
-  return { success: true, user: safeUser };
+  return { success: true, user: stripPassword(newUser) };
 }
 
 export async function dbUpdateUser(
@@ -268,8 +280,7 @@ export async function dbUpdateUser(
     }
   }
 
-  const { password_hash: _ph, ...safeUser } = user;
-  return { success: true, user: safeUser };
+  return { success: true, user: stripPassword(user) };
 }
 
 export async function dbDeleteUser(id: string): Promise<{ success: true } | { error: string }> {

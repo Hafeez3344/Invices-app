@@ -109,6 +109,7 @@ export default function OrderEditor() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.id, order?.status, customerUrl]);
 
   function updateOrder(next: DeliveryOrder) {

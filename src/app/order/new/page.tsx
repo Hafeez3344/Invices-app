@@ -41,7 +41,10 @@ export default function NewOrderPage() {
         if (res && res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data.invoices && Array.isArray(data.invoices)) {
-            allInvoices = data.invoices.map((i: any) => i.payload || i);
+            allInvoices = data.invoices.map(
+              (i: { payload?: DeliveryOrder } & Partial<DeliveryOrder>) =>
+                (i.payload || i) as DeliveryOrder
+            );
           }
         }
 

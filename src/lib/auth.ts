@@ -1,6 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { getSupabase, isSupabaseConfigured } from "./supabase";
 import { dbGetUserById, dbGetUserByUsername } from "./serverDb";
 import type { SessionUser, UserRole } from "./types";
 

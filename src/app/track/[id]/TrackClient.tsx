@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { RotateCw, CheckCircle2, Clock, AlertTriangle, Truck } from "lucide-react";
+import { RotateCw, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { BRAND } from "@/lib/defaults";
 import { getRecentInvoices, purgeExpiredLocalInvoices } from "@/lib/idb";
 import {
