@@ -48,9 +48,8 @@ export default function NewOrderPage() {
           }
         }
 
-        if (allInvoices.length === 0) {
-          allInvoices = await getRecentInvoices();
-        }
+        const localRecent = await getRecentInvoices();
+        allInvoices = [...allInvoices, ...localRecent];
 
         if (allInvoices.length > 0) {
           const max = allInvoices.reduce((acc, cur) => {

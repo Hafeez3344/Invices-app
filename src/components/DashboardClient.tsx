@@ -16,7 +16,7 @@ import ConfirmModal from "@/components/ConfirmModal";
 import { authHeaders, getSessionUser, isLoggedIn } from "@/lib/session";
 import { getRecentInvoices, updateInvoiceStatusLocal } from "@/lib/idb";
 import type { AlertState, AppUser, DeliveryOrder, InvoiceStatus } from "@/lib/types";
-import { INVOICE_STATUSES, statusLabelAr } from "@/lib/types";
+import { INVOICE_STATUSES, statusLabelAr, isInvoiceExpired } from "@/lib/types";
 
 const STATUSES = INVOICE_STATUSES;
 
@@ -57,6 +57,7 @@ export default function DashboardClient() {
   }, [router]);
 
   async function loadHistory() {
+    let apiList: DeliveryOrder[] = [];
     try {
       const res = await fetch("/api/invoices", { headers: authHeaders() });
       if (res.ok) {
@@ -70,7 +71,7 @@ export default function DashboardClient() {
             updated_at?: string;
             payload?: Partial<DeliveryOrder>;
           };
-          const list: DeliveryOrder[] = (data.invoices as RawInvoiceRecord[]).map((inv) => ({
+          apiList = (data.invoices as RawInvoiceRecord[]).map((inv) => ({
             ...(inv.payload || {}),
             id: inv.id,
             invoiceNumber: inv.invoice_number || inv.payload?.invoiceNumber || "",
@@ -78,15 +79,43 @@ export default function DashboardClient() {
             createdAt: inv.created_at || inv.payload?.createdAt,
             updatedAt: inv.updated_at || inv.payload?.updatedAt,
           } as DeliveryOrder));
-          setHistory(list);
-          return;
         }
       }
     } catch (e) {
       console.warn("Failed to load invoices from API, falling back to local IDB:", e);
     }
-    const items = await getRecentInvoices();
-    setHistory(items);
+
+    // Always fetch downloaded invoices from local browser IndexedDB
+    const localList = await getRecentInvoices();
+
+    // Merge both sources (deduplicating by id, preserving full payload and latest update)
+    const map = new Map<string, DeliveryOrder>();
+    for (const inv of localList) {
+      if (inv.id) map.set(inv.id, inv);
+    }
+    for (const inv of apiList) {
+      if (!inv.id) continue;
+      const existing = map.get(inv.id);
+      if (!existing) {
+        map.set(inv.id, inv);
+      } else {
+        const localTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const apiTime = new Date(inv.updatedAt || inv.createdAt || 0).getTime();
+        if (apiTime > localTime) {
+          map.set(inv.id, { ...existing, ...inv });
+        }
+      }
+    }
+
+    const merged = Array.from(map.values())
+      .filter((inv) => !isInvoiceExpired(inv.createdAt))
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+      );
+
+    setHistory(merged);
   }
 
   async function loadUsers() {
@@ -105,34 +134,42 @@ export default function DashboardClient() {
     try {
       await updateInvoiceStatusLocal(statusTarget.id, statusValue);
 
-      const res = await fetch(`/api/invoices/${statusTarget.id}`, {
-        method: "PATCH",
-        headers: authHeaders(),
-        body: JSON.stringify({ status: statusValue }),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        if (res.status === 410) {
-          setAlert({
-            isOpen: true,
-            title: "انتهت الصلاحية / Expired",
-            message:
-              data.error ||
-              "انتهت صلاحية الفاتورة (تحفظ لمدة 5 أيام فقط) / This invoice is older than 5 days and was removed.",
-            type: "warning",
-          });
-          setStatusTarget(null);
-          loadHistory();
-          return;
-        }
-        setAlert({
-          isOpen: true,
-          title: "فشل / Failed",
-          message: data.error || "فشل تحديث الحالة / Failed to update status",
-          type: "error",
+      try {
+        const res = await fetch(`/api/invoices/${statusTarget.id}`, {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({ status: statusValue }),
         });
-        return;
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          if (res.status === 410) {
+            setAlert({
+              isOpen: true,
+              title: "انتهت الصلاحية / Expired",
+              message:
+                data.error ||
+                "انتهت صلاحية الفاتورة (تحفظ لمدة 5 أيام فقط) / This invoice is older than 5 days and was removed.",
+              type: "warning",
+            });
+            setStatusTarget(null);
+            loadHistory();
+            return;
+          }
+          if (res.status === 404) {
+            console.warn("Invoice not present on server, updated locally in browser storage.");
+          } else {
+            setAlert({
+              isOpen: true,
+              title: "فشل / Failed",
+              message: data.error || "فشل تحديث الحالة / Failed to update status",
+              type: "error",
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to reach server to update status:", err);
       }
 
       setAlert({

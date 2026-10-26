@@ -203,11 +203,16 @@ export default function OrderEditor() {
         encryptedInvoiceId: order.encryptedInvoiceId || order.id,
       };
 
-      await fetch("/api/invoices", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(withMeta),
-      });
+      try {
+        await fetch("/api/invoices", {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(withMeta),
+        });
+      } catch (postErr) {
+        console.warn("Failed to save invoice to server API, relying on local history:", postErr);
+      }
+
       await addInvoiceToHistory(withMeta);
       // So QR /track page can show full invoice details
       try {
