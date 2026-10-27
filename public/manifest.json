@@ -1,19 +1,32 @@
 {
-  "name": "وصل | Wasl",
-  "short_name": "وصل",
-  "description": "Create and manage delivery orders with PDF generation",
+  "name": "وصل | Wasl - Delivery Orders",
+  "short_name": "Wasl",
+  "description": "Application for creating and exporting delivery orders in PDF format",
   "start_url": "/",
+  "id": "/?source=pwa",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#204978",
-  "orientation": "portrait",
+  "orientation": "any",
   "scope": "/",
   "icons": [
     {
-      "src": "/wasl-logo.jpg",
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/jpeg",
+      "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/wasl-logo.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
+      "purpose": "any"
     }
   ]
 }

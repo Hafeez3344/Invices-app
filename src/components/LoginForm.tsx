@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { saveSession, isLoggedIn } from "@/lib/session";
 import { BRAND } from "@/lib/defaults";
+import InstallAppButton from "@/components/InstallAppButton";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -56,12 +57,16 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-100 to-slate-200 px-4 font-cairo">
+    <div className="min-h-screen relative flex items-center justify-center bg-gradient-to-b from-slate-100 to-slate-200 px-4 font-cairo">
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <InstallAppButton />
+      </div>
+
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
         <div className="mb-8 flex flex-col items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/wasl-logo.jpg"
+            src="/icon-192.png"
             alt={BRAND.name}
             className="mb-4 h-20 w-20 rounded-2xl object-cover shadow-sm border border-slate-100"
           />

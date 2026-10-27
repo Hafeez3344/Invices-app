@@ -6,6 +6,7 @@ import { LogOut, FilePlus2 } from "lucide-react";
 import { clearSession, getSessionUser } from "@/lib/session";
 import { BRAND } from "@/lib/defaults";
 import { useEffect, useState } from "react";
+import InstallAppButton from "@/components/InstallAppButton";
 
 export default function AppHeader() {
   const router = useRouter();
@@ -25,18 +26,22 @@ export default function AppHeader() {
   return (
     <header className="w-full bg-[#204978] text-white shadow-md font-cairo border-b border-[#18365a]">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/wasl-logo.jpg"
-            alt={BRAND.name}
-            className="h-9 w-9 rounded-lg object-cover border border-white/20"
-          />
-          <div>
-            <p className="text-sm font-bold leading-tight">{BRAND.nameAr}</p>
-            <p className="text-[11px] text-white/70">{BRAND.name}</p>
-          </div>
-        </Link>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <Link href="/dashboard" className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icon-192.png"
+              alt={BRAND.name}
+              className="h-9 w-9 rounded-lg object-cover border border-white/20"
+            />
+            <div>
+              <p className="text-sm font-bold leading-tight">{BRAND.nameAr}</p>
+              <p className="text-[11px] text-white/70">{BRAND.name}</p>
+            </div>
+          </Link>
+
+          <InstallAppButton compactOnMobile />
+        </div>
 
         <div className="flex items-center gap-2">
           <Link

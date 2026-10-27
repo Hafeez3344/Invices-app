@@ -13,8 +13,8 @@ export const metadata: Metadata = {
     title: BRAND.nameAr,
   },
   icons: {
-    icon: "/wasl-logo.jpg",
-    apple: "/wasl-logo.jpg",
+    icon: "/icon-192.png",
+    apple: "/icon-192.png",
   },
 };
 
@@ -50,9 +50,19 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              window.deferredInstallPrompt = null;
+              window.addEventListener('beforeinstallprompt', function(e) {
+                e.preventDefault();
+                window.deferredInstallPrompt = e;
+                window.dispatchEvent(new Event('pwa-installable'));
+              });
+              window.addEventListener('appinstalled', function() {
+                window.deferredInstallPrompt = null;
+                window.dispatchEvent(new Event('pwa-installed'));
+              });
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function() {});
                 });
               }
             `,
