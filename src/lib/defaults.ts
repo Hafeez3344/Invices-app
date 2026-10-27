@@ -27,7 +27,7 @@ export const DEFAULT_ORDER_TEMPLATE: Omit<
   company: {
     nameAr: "وصل للتوصيل",
     addressAr: "الرياض، المملكة العربية السعودية",
-    phone: "+966500000000",
+    phone: "+966538473427",
     logoDataUrl: "/wasl-logo.jpg",
     notes: "",
   },
@@ -41,14 +41,14 @@ export const DEFAULT_ORDER_TEMPLATE: Omit<
     name: "اسم المرسل",
     address: "جدة",
     city: "جدة",
-    phone: "+966500000001",
+    phone: "+966538473427",
     notes: "",
   },
   receiver: {
     name: "اسم المرسل إليه",
     address: "المدينة المنورة",
     city: "المدينة المنورة",
-    mobile: "+966500000002",
+    mobile: "+966538473427",
     notes: "",
   },
   transport: {
@@ -62,7 +62,7 @@ export const DEFAULT_ORDER_TEMPLATE: Omit<
   driver: {
     name: "اسم السائق",
     iqamaNumber: "2000000000",
-    mobile: "+966500000003",
+    mobile: "+966538473427",
   },
   load: { ...defaultItem },
   items: [{ ...defaultItem }],
